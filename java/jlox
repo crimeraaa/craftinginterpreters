@@ -1,0 +1,8 @@
+#!/usr/bin/bash
+# `chmod +x ./lox` so you can call `./lox` instead of `bash ./lox`.
+
+# Where com/craftinginterpreters/lox/ is found.
+# This is the ONLY way you can run Java programs with custom packages.
+CLASSPATH=$(dirname "$0")
+
+java --class-path ${CLASSPATH} com.craftinginterpreters.lox.Lox $@
