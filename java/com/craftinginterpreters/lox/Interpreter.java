@@ -1,5 +1,7 @@
 package com.craftinginterpreters.lox;
 
+import java.util.List;
+
 /**
  * We'll use Java's Object type to represent all of our Lox types. 
  * We'll then query each object instance for their specific type.
@@ -11,10 +13,11 @@ package com.craftinginterpreters.lox;
  */
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     /* Take a syntax tree for an expression then try to evaluate it. */
-    void interpret(Expr expression) {
+    void interpret(List<Stmt> statements) {
         try {
-            Object value = evaluateExpr(expression);
-            System.out.println(stringifyValue(value));
+            for (Stmt statement : statements) {
+                executeStatement(statement);
+            }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
@@ -28,7 +31,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     
     @Override
     public Object visitUnaryExpr(Expr.Unary expr) {
-        Object right = evaluateExpr(expr.right);
+        Object right = evaluateExpression(expr.right);
         switch (expr.operator.type) {
             case TK_COMPARE_NOT:
                 return !isTruthy(right);
@@ -70,7 +73,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return a.equals(b);
     }
     
-    private String stringifyValue(Object object) {
+    private String stringify(Object object) {
         if (object == null) {
             return "nil";
         }
@@ -91,32 +94,36 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
      */
     @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
-        return evaluateExpr(expr.expression);
+        return evaluateExpression(expr.expression);
     }
     
-    private Object evaluateExpr(Expr expr) {
+    private Object evaluateExpression(Expr expr) {
         return expr.accept(this);
+    }
+    
+    private void executeStatement(Stmt stmt) {
+        stmt.accept(this);
     }
     
     /* Evaluate then discard the value. */
     @Override
     public Void visitExpressionStmt(Stmt.Expression stmt) {
-        evaluateExpr(stmt.expression);
+        evaluateExpression(stmt.expression);
         return null;
     }
     
     @Override
     public Void visitPrintStmt(Stmt.Print stmt) {
-        Object value = evaluateExpr(stmt.expression);
-        System.out.println(stringifyValue(value));
+        Object value = evaluateExpression(stmt.expression);
+        System.out.println(stringify(value));
         return null;
     }
     
     /* Recursively evaluate subexpressions until we're left with 2. */
     @Override
     public Object visitBinaryExpr(Expr.Binary expr) {
-        Object left = evaluateExpr(expr.left);
-        Object right = evaluateExpr(expr.right);
+        Object left = evaluateExpression(expr.left);
+        Object right = evaluateExpression(expr.right);
 
         switch(expr.operator.type) {
             case TK_PLUS:

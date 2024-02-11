@@ -1,5 +1,6 @@
 package com.craftinginterpreters.lox;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.craftinginterpreters.lox.TokenType.*;
@@ -41,21 +42,43 @@ class Parser {
     }
     
     /* Attempt to return a usable syntax tree, but that's not guaranteed! */
-    Expr startParser() {
+    List<Stmt> parseProgram() {
+        List<Stmt> statements = new ArrayList<>();
         try {
-            return parseExpression();
+            while (!isAtEnd()) {
+                statements.add(parseStatement());
+            }
         } catch (ParseError error) {
-            // Syntax error recovery is the Parser's job, so we don't let this
-            // error bubble up to the topmost scope.
-            return null; 
+            // Do nothing for now as the error message was already printed.
         }
+        return statements;
     }
     
+    private Stmt parseStatement() {
+        // It's very important to consume the print token beforehand!!!
+        if (consumeTokenIfMatchesAny(TK_PRINT)) {
+            return parsePrintStmt();
+        }
+        return parseExprStmt();
+    }
+    
+    private Stmt parsePrintStmt() {
+        Expr value = parseExpression();
+        consumeTokenOrThrow(TK_SEMI, "Expected ';' after value.");
+        return new Stmt.Print(value);
+    }
+    
+    private Stmt parseExprStmt() {
+        Expr expr = parseExpression();
+        consumeTokenOrThrow(TK_SEMI, "Expected ';' after expression.");
+        return new Stmt.Expression(expr);
+    }
+
     /* Redunant, but may improve readability: expression -> equality */
     private Expr parseExpression() {
         return parseEquality();
     }
-
+    
     /* equality -> comparison ( ( "!="|"==" ) comparison )* ; */
     private Expr parseEquality() {
         // First <comparison> nonterminal.
@@ -115,7 +138,7 @@ class Parser {
             Expr right = parseUnary();
             return new Expr.Unary(operator, right);
         }
-        return parsePrimary();
+        return primary();
     }
 
     /**
@@ -126,7 +149,7 @@ class Parser {
      *          | "(" expression ")" 
      *          | expression ( "," expression )+ ; 
      */
-    private Expr parsePrimary() {
+    private Expr primary() {
         if (consumeTokenIfMatchesAny(TK_FALSE)) {
             return parseCommaOrExpr(false);
         }
@@ -142,7 +165,7 @@ class Parser {
         }
         if (consumeTokenIfMatchesAny(TK_LPAREN)) {
             Expr expr = parseExpression();
-            consumeTokenSafely(TK_RPAREN, "Expected ')' after expression.");
+            consumeTokenOrThrow(TK_RPAREN, "Expected ')' after expression.");
             return new Expr.Grouping(expr);
         }
 
@@ -153,9 +176,9 @@ class Parser {
             case TK_PLUS:
             case TK_SLASH:
             case TK_STAR:
-                throw logError(token, "Expected a left operand");
+                throw logParseError(token, "Expected a left operand");
             default:
-                throw logError(token, "Expected an expression.");
+                throw logParseError(token, "Expected an expression.");
         }
     }
     
@@ -175,14 +198,14 @@ class Parser {
     
     
     /* Similar to matchCurrentToken but also throws an error if false. */
-    private Token consumeTokenSafely(TokenType type, String message) {
+    private Token consumeTokenOrThrow(TokenType type, String message) {
         if (matchCurrentToken(type)) {
             return consumeToken();
         }
-        throw logError(peekCurrentToken(), message);
+        throw logParseError(peekCurrentToken(), message);
     }
     
-    private ParseError logError(Token token, String message) {
+    private ParseError logParseError(Token token, String message) {
         Lox.error(token, message);
         return new ParseError();
     }
