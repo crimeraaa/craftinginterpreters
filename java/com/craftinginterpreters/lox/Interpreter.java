@@ -12,6 +12,9 @@ import java.util.List;
  * Expressions produce values but statements do not.
  */
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+    // Store all our variables as long as this interpreter instance runs.
+    private Environment environment = new Environment();
+    
     /* Take a syntax tree for an expression then try to evaluate it. */
     void interpret(List<Stmt> statements) {
         try {
@@ -43,6 +46,11 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
         // Unreachable since we only allow unary minus and unary not.
         return null;
+    }
+    
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        return environment.retrieveVariable(expr.name);
     }
     
     private void checkNumberOperand(Token operator, Object operand) {
@@ -118,6 +126,17 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         System.out.println(stringify(value));
         return null;
     }
+    
+    /* Lack of an initializer is NOT a syntax error for Lox. */
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = null;
+        if (stmt.initializer != null) {
+            value = evaluateExpression(stmt.initializer);
+        }
+        environment.defineVariable(stmt.name.lexeme, value);
+        return null;
+    } 
     
     /* Recursively evaluate subexpressions until we're left with 2. */
     @Override

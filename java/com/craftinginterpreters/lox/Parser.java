@@ -11,7 +11,11 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * String literals indicate said symbols appear as-is in the code.
  * '*', '+' after groupings surrounded by "()" work as in regex.
  * 
- * program      -> statement* EOF ;
+ * program      -> declaration* EOF ;
+ * 
+ * declaration  -> varDecl
+ *               | statement ;
+ * varDecl      -> "var" IDENTIFIER ( "=" expression )? ";" ;
  *
  * statement    -> exprStmt
  *               | printStmt ;
@@ -27,10 +31,9 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * unary        -> ( "!"|"-" ) unary
  *               | primary ;
  * primary      -> NUMBER_LITERAL | STRING_LITERAL 
- *               | "true" 
- *               | "false" 
- *               | "nil"
- *               | "(" expression ")" ;
+ *               | "true" | "false" | "nil"
+ *               | "(" expression ")" 
+ *               | IDENTIFIER ;
  */
 class Parser {
     private static class ParseError extends RuntimeException {}
@@ -46,12 +49,24 @@ class Parser {
         List<Stmt> statements = new ArrayList<>();
         try {
             while (!isAtEnd()) {
-                statements.add(parseStatement());
+                statements.add(parseDeclaration());
             }
         } catch (ParseError error) {
             // Do nothing for now as the error message was already printed.
         }
         return statements;
+    }
+    
+    private Stmt parseDeclaration() {
+        try {
+            if (consumeTokenIfMatchesAny(TK_VAR)) {
+                return parseVarDecl();
+            }
+            return parseStatement();
+        } catch (ParseError error) {
+            synchronizeParser(); // Need when parser panics
+            return null;
+        }
     }
     
     private Stmt parseStatement() {
@@ -66,6 +81,17 @@ class Parser {
         Expr value = parseExpression();
         consumeTokenOrThrow(TK_SEMI, "Expected ';' after value.");
         return new Stmt.Print(value);
+    }
+    
+    private Stmt parseVarDecl() {
+        Token name = consumeTokenOrThrow(TK_IDENT, "Expected a variable name.");
+        Expr initializer = null; // If no '=' found, default to null.
+        // If '=' found, consume it then parse whatever the assignment is.
+        if (consumeTokenIfMatchesAny(TK_ASSIGN)) {
+            initializer = parseExpression();
+        }
+        consumeTokenOrThrow(TK_SEMI, "Expected ';' after variable declaration.");
+        return new Stmt.Var(name, initializer);
     }
     
     private Stmt parseExprStmt() {
@@ -138,7 +164,7 @@ class Parser {
             Expr right = parseUnary();
             return new Expr.Unary(operator, right);
         }
-        return primary();
+        return parsePrimary();
     }
 
     /**
@@ -149,7 +175,7 @@ class Parser {
      *          | "(" expression ")" 
      *          | expression ( "," expression )+ ; 
      */
-    private Expr primary() {
+    private Expr parsePrimary() {
         if (consumeTokenIfMatchesAny(TK_FALSE)) {
             return parseCommaOrExpr(false);
         }
@@ -159,9 +185,13 @@ class Parser {
         if (consumeTokenIfMatchesAny(TK_NIL)) {
             return parseCommaOrExpr(null);
         }
-        // Our scanner/lexer already retrieved the in-memory object of this
+        // Our scanner/lexer already retrieved the in-memory object of this.
         if (consumeTokenIfMatchesAny(TK_NUMBER, TK_STRING)) {
             return parseCommaOrExpr(peekPreviousToken().literal);
+        }
+        // We just parsed a variable name or identifier.
+        if (consumeTokenIfMatchesAny(TK_IDENT)) {
+            return new Expr.Variable(peekPreviousToken());
         }
         if (consumeTokenIfMatchesAny(TK_LPAREN)) {
             Expr expr = parseExpression();

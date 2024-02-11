@@ -1,1 +1,6 @@
-print "Hi mom!"
+print 13; // 13
+print 1 + 2; // 3
+print 1 + 2 * 3; // 7
+print (1 + 2) * 3; // 9
+print "Hi mom!"; // Hi mom!
+print "Fish" + " and " + "chips"; // Fish and chips
