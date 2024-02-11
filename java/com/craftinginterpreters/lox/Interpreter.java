@@ -105,10 +105,20 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return evaluateExpression(expr.expression);
     }
     
+    /**
+     * Ends up "deferring" to one of the "specializations" in Expr.java, which
+     * in turn ends up calling one of the Expr.*.visit*Expr methods which we
+     * defined above.
+     */
     private Object evaluateExpression(Expr expr) {
         return expr.accept(this);
     }
     
+    /** 
+     * Ends up "deferring" to one of the "specializations" in Stmt.java, which
+     * in turn ends up calling one of the Stmt.*.visit*Stmt methods which we 
+     * defined above.
+     */
     private void executeStatement(Stmt stmt) {
         stmt.accept(this);
     }
