@@ -123,6 +123,26 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         stmt.accept(this);
     }
     
+    void executeBlock(List<Stmt> statements, Environment environment) {
+        // Save the current environment so we can return to it.
+        Environment previous = this.environment;
+        // Execute all of the inner block's statements until all done.
+        try {
+            this.environment = environment;
+            for (Stmt statement : statements) {
+                executeStatement(statement);
+            }
+        } finally {
+            this.environment = previous;
+        }
+    }
+
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        executeBlock(stmt.statements, new Environment(environment));
+        return null;
+    }
+    
     /* Evaluate then discard the value. */
     @Override
     public Void visitExpressionStmt(Stmt.Expression stmt) {

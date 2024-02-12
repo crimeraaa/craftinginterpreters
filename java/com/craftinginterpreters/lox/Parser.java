@@ -18,7 +18,11 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * varDecl      -> "var" IDENTIFIER ( "=" expression )? ";" ;
  *
  * statement    -> exprStmt
- *               | printStmt ;
+ *               | printStmt 
+ *               | block ;
+ * 
+ * block        -> "{" declaration* "}" ;
+ * 
  * exprStmt     -> expression ";"
  * printStmt    -> "print" expression ";" ;
  *
@@ -76,6 +80,9 @@ class Parser {
         if (consumeTokenIfMatchesAny(TK_PRINT)) {
             return parsePrintStmt();
         }
+        if (consumeTokenIfMatchesAny(TK_LBRACE)) {
+            return new Stmt.Block(parseBlock());
+        }
         return parseExprStmt();
     }
     
@@ -100,6 +107,15 @@ class Parser {
         Expr expr = parseExpression();
         consumeTokenOrThrow(TK_SEMI, "Expected ';' after expression.");
         return new Stmt.Expression(expr);
+    }
+    
+    private List<Stmt> parseBlock() {
+        List<Stmt> statements = new ArrayList<>();
+        while (!matchCurrentToken(TK_RBRACE) && !isAtEnd()) {
+            statements.add(parseDeclaration());
+        }
+        consumeTokenOrThrow(TK_RBRACE, "Expected '}' after block.");
+        return statements;
     }
 
     /* Redunant, but may improve readability: expression -> equality */
