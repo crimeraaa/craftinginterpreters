@@ -1,10 +1,30 @@
 fun greetA(name) {
-    print "Hi " + name + "!";
+    print("Hi " + name + "!");
 }
 
 fun greetB(first, last) {
-    print "Hi " + first + " " + last + "!";
+    print("Hi " + first + " " + last + "!");
 }
 
+fun pow(base, exp) {
+    var res = (exp <= 0) and 1 or base;
+    if (exp > 0) {
+        for (var i = 1; i < exp; i = i + 1) {
+            res = res * base; 
+        }
+    } else if (exp < 0) {
+        for (var i = exp; i < 0; i = i + 1) {
+            res = res / base;
+        }
+    } 
+    return res;
+}
+
+print(greetA);
+print(greetB);
+print(pow);
 greetA("Bobby");
 greetB("Bobby", "Tables");
+for (var i = -5; i < 5; i = i + 1) {
+    print(pow(2,i));
+}

@@ -15,23 +15,34 @@ interface LoxCallable {
  */
 class LoxFunction implements LoxCallable {
     private final Stmt.Function declaration;
-    LoxFunction(Stmt.Function declaration) {
+    private final Environment closure; // Hold on to any external local variables!
+                                       
+    LoxFunction(Stmt.Function declaration, Environment closure) {
         this.declaration = declaration;
+        this.closure = closure;
     }
     
     /* Assumes that we verified the user supplied the correct number of arguments. */
     @Override
     public Object call(Interpreter interpreter, List<Object> arguments) {
-        // Create a new, localized, inner environment.
-        Environment environment = new Environment(interpreter.globals);
+        // Create a new, localized, inner environment which goes out from the
+        // function's body all the way out until the global scope.
+        Environment environment = new Environment(closure);
+
         // Populate the inner environment with the parameter names and their values.
         for (int i = 0; i < this.declaration.params.size(); i++) {
             String ident = this.declaration.params.get(i).lexeme;
             environment.defineVariable(ident, arguments.get(i));
         }
-        // The function body expects the exact parameter names to appear.
-        // After this, the local environment will be discarded.
-        interpreter.executeBlock(this.declaration.body, environment);
+        
+        try {
+            // The function body expects the exact parameter names to appear.
+            // After this, the local environment will be discarded.
+            interpreter.executeBlock(this.declaration.body, environment);
+        } catch (Return returnValue) {
+            return returnValue.value;
+        }
+        // If no 'return' was found, we default to returning a nil value.
         return null;
     }
 

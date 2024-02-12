@@ -25,11 +25,13 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * varDecl      -> "var" IDENTIFIER ( "=" expression )? ";" ;
  *
  * statement    -> exprStmt
- *               | forStmt
- *               | ifStmt 
  *               | printStmt 
+ *               | ifStmt 
  *               | whileStmt
+ *               | forStmt
+ *               | returnStmt
  *               | block ;
+ * returnStmt   -> "return" expression? ";" ;
  * forStmt      -> "for" "(" ( varDecl | exprStmt | ";" ) ")"
  *                  expression? ";"
  *                  expression? ")" statement ;
@@ -110,6 +112,9 @@ class Parser {
         // if (consumeTokenIfMatchesAny(KEYWORD_PRINT)) {
         //     return parsePrintStmt();
         // }
+        if (consumeTokenIfMatchesAny(KEYWORD_RETURN)) {
+            return parseReturnStmt();
+        }
         if (consumeTokenIfMatchesAny(KEYWORD_WHILE)) {
             return parseWhileStmt();
         }
@@ -186,6 +191,18 @@ class Parser {
     //     consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after value.");
     //     return new Stmt.Print(value);
     // }
+    
+    private Stmt parseReturnStmt() {
+        Token keyword = peekPreviousToken();
+        // If no value is found after the 'return' word, default to a nil value.
+        Expr value = null;
+        // If a value *is* found after the 'return' word, use it.
+        if (!matchCurrentToken(OPERATOR_SEMI)) {
+            value = parseExpression();
+        }
+        consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after return value.");
+        return new Stmt.Return(keyword, value);
+    }
     
     private Stmt parseWhileStmt() {
         consumeTokenOrThrow(LEFT_PAREN, "Expected '(' after 'while'.");

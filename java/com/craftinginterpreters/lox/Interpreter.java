@@ -3,6 +3,21 @@ package com.craftinginterpreters.lox;
 import java.util.ArrayList;
 import java.util.List;
 
+/** 
+ * Use exceptions to unwind a heavily recursive tree-walk interpreter. 
+ * It's not pretty but for our purposes it works.
+ * This also helps us escape out of deeply nested functions.
+ */
+class Return extends RuntimeException {
+    final Object value;
+
+    Return(Object value) {
+        // Disable JVM magic we don't need, like stack traces
+        super(null, null, false, false);
+        this.value = value;
+    }
+}
+
 /**
  * We'll use Java's Object type to represent all of our Lox types. 
  * We'll then query each object instance for their specific type.
@@ -214,7 +229,10 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
         // Create a function syntax node, or the compile-time representation.
-        LoxFunction function = new LoxFunction(stmt);
+        // Also capture the current environment, especially for closures.
+        // However this is the environment for when the function is declared,
+        // not the environment when it's called.
+        LoxFunction function = new LoxFunction(stmt, this.environment);
         // Create the runtime representation of our function.
         this.environment.defineVariable(stmt.name.lexeme, function);
         return null;
@@ -235,6 +253,16 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         Object value = evaluateExpression(stmt.expression);
         System.out.println(stringifyObject(value));
         return null;
+    }
+    
+    @Override
+    public Void visitReturnStmt(Stmt.Return stmt) {
+        Object value = null;
+        if (stmt.value != null) {
+            value = evaluateExpression(stmt.value);
+        }
+        // Use exceptions to unwind call stack back to caller
+        throw new Return(value); 
     }
     
     /* Lack of an initializer is NOT a syntax error for Lox. */
