@@ -41,6 +41,7 @@ public class Lox {
         if (hadError) {
             System.exit(65);
         }
+        
         if (hadRuntimeError) {
             System.exit(70);
         }
@@ -67,9 +68,14 @@ public class Lox {
         List<Token> tokens = scanner.scanTokens();
         Parser parser = new Parser(tokens);
         List<Stmt> statements = parser.parseProgram();
-
         if (hadError) {
-            return;
+            return; // Don't run syntactically invalid code!
+        }
+
+        Resolver resolver = new Resolver(interpreter);
+        resolver.resolveBlockStmts(statements);
+        if (hadError) {
+            return; // Don't run semantically invalid code!
         }
         interpreter.interpret(statements);
     }

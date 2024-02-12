@@ -1,6 +1,8 @@
 package com.craftinginterpreters.lox;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 
 /** 
@@ -30,12 +32,16 @@ class Return extends RuntimeException {
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     // Fixed references to the outermost global environment.
     final Environment globals = new Environment();
+
     // Track changes as we enter and exit local scopes: the current environment.
     private Environment environment = globals;
+
+    // Associate each syntax tree node with its resolved data.
+    private final Map<Expr, Integer> locals = new HashMap<>();
     
     Interpreter() {
         // Creates a global builtin function called clock().
-        globals.defineVariable("clock", new LoxCallable() {
+        this.globals.defineVariable("clock", new LoxCallable() {
             @Override
             public int arity() {
                 return 0;
@@ -52,7 +58,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             }
         });
         // Instead of a keyword, let's make it a function.
-        globals.defineVariable("print", new LoxCallable() {
+        this.globals.defineVariable("print", new LoxCallable() {
             @Override
             public int arity() {
                 return 1;
@@ -126,7 +132,21 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     
     @Override
     public Object visitVariableExpr(Expr.Variable expr) {
-        return environment.retrieveVariable(expr.name);
+        // return environment.retrieveVariable(expr.name);
+        return lookUpVariable(expr.name, expr); // Changed in Chaper 11.4.1
+    }
+    
+    /** 
+     * Look up only resolved distance in the map, which contains only locals.
+     * Remember that globals are treated specially and don't end up in the map.
+     */
+    private Object lookUpVariable(Token name, Expr expr) {
+        Integer distance = this.locals.get(expr);
+        if (distance != null) {
+            return this.environment.retrieveLocalVariable(distance, name.lexeme);
+        } else {
+            return this.globals.retrieveGlobalVariable(name);
+        }
     }
     
     private void checkNumberOperand(Token operator, Object operand) {
@@ -197,6 +217,19 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
      */
     private void executeStatement(Stmt stmt) {
         stmt.accept(this);
+    }
+    
+    /**
+     * Every time our resolver visits a variable, it tells the interpeter
+     * how many scopes are there between the current scope and the scope where
+     * the variable is defined.
+     * 
+     * At runtime this corresponds to exactly the number of environments between
+     * the current one and the enclosing one where the interpreter can find the
+     * variable's value. This function simply hands that number to the interpreter.
+     */
+    void resolve(Expr expr, int depth) {
+        this.locals.put(expr, depth);
     }
     
     void executeBlock(List<Stmt> statements, Environment environment) {
@@ -272,7 +305,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         if (stmt.initializer != null) {
             value = evaluateExpression(stmt.initializer);
         }
-        environment.defineVariable(stmt.name.lexeme, value);
+        this.environment.defineVariable(stmt.name.lexeme, value);
         return null;
     } 
     
@@ -291,7 +324,12 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
         Object value = evaluateExpression(expr.value);
-        environment.assignVariable(expr.name, value);
+        Integer distance = this.locals.get(expr);
+        if (distance != null) {
+            this.environment.assignLocalVariable(distance, expr.name, value);
+        } else {
+            this.globals.assignGlobalVariable(expr.name, value);
+        }
         return value;
     }
     

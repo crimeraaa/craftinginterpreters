@@ -458,6 +458,9 @@ class Parser {
      * C-style comma (sep|op)erator. Right associative, lowest precedence.
      * It's analogous to expressions where a single one is expected.
      * All operands are *evaluated* but only the rightmost is returned.
+     * 
+     * This is rather difficult to implement correctly while not messing up
+     * function calls!
       */
     // private Expr parseCommaOrExpr(Object literal) {
     //     if (consumeTokenIfMatchesAny(OPERATOR_COMMA)) {

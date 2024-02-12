@@ -11,3 +11,13 @@ var counter = makeCounter();
 print(counter);
 counter(); // "1"
 counter(); // "2"
+
+var a = "global";
+{
+    fun showA() {
+        print(a); // Bind to nearest variable a
+    }
+    showA();
+    var a = "block"; // Does not change the global one, but...
+    showA(); // This prints "block"!
+}

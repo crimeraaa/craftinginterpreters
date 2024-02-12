@@ -32,7 +32,32 @@ class Environment {
         this.values.put(name, value);
     }
     
-    Object retrieveVariable(Token name) {
+    /**
+     * Use the results of our static analysis to retrieve a local variable.
+     */
+    Object retrieveLocalVariable(int distance, String name) {
+        return retrieveEnclosingEnvironment(distance).values.get(name);
+    }
+    
+    /**
+     * Retrieve an enclosing environment which we are sure contains a variable
+     * we are looking for.
+     */
+    Environment retrieveEnclosingEnvironment(int distance) {
+        Environment environment = this;
+        for (int i = 0; i < distance; i++) {
+            environment = environment.enclosing;
+        }
+        return environment;
+    }
+    
+    /**
+     * Walk the chain of enclosing environments to find some global variable.
+     * For local variables or external local variables, you need to determine
+     * the number of scopes away your desired variable is from your current scope
+     * then use retrieveLocalVariable.
+     */
+    Object retrieveGlobalVariable(Token name) {
         String ident = name.lexeme;
         // If this variable shadowed an enclosing name we'll prefer the local.
         if (this.values.containsKey(ident)) {
@@ -40,22 +65,26 @@ class Environment {
         }
         // No local variable of this name so try to get an enclosing one.
         if (this.enclosing != null) {
-            return this.enclosing.retrieveVariable(name);
+            return this.enclosing.retrieveGlobalVariable(name);
         }
         throw new RuntimeError(name, "Undefined variable '" + ident + "'.");
     }
     
     /* Assign a new value to an already existing variable. */
-    void assignVariable(Token name, Object value) {
+    void assignGlobalVariable(Token name, Object value) {
         String ident = name.lexeme;
         if (this.values.containsKey(ident)) {
             this.values.put(ident, value);
             return;
         }
         if (this.enclosing != null) {
-            this.enclosing.assignVariable(name, value);
+            this.enclosing.assignGlobalVariable(name, value);
             return;
         }
         throw new RuntimeError(name, "Undefined variable '" + ident + "'.");
+    } 
+    
+    void assignLocalVariable(int distance, Token name, Object value) {
+        retrieveEnclosingEnvironment(distance).values.put(name.lexeme, value);
     }
 }
