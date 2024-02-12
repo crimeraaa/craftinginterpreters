@@ -1,5 +1,6 @@
 package com.craftinginterpreters.lox;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 // Specifically has to be import static to bring enum members into global scope.
@@ -18,10 +19,15 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * varDecl      -> "var" IDENTIFIER ( "=" expression )? ";" ;
  *
  * statement    -> exprStmt
+ *               | forStmt
  *               | ifStmt 
  *               | printStmt 
  *               | whileStmt
  *               | block ;
+ *               
+ * forStmt      -> "for" "(" ( varDecl | exprStmt | ";" ) ")"
+ *                  expression? ";"
+ *                  expression? ")" statement ;
  *               
  * whileStmt    -> "while" "(" expression ")" statement ;
  * 
@@ -85,6 +91,9 @@ class Parser {
     }
     
     private Stmt parseStatement() {
+        if (consumeTokenIfMatchesAny(KEYWORD_FOR)) {
+            return parseForStmt();
+        }
         // It's very important to consume the print token beforehand!!!
         if (consumeTokenIfMatchesAny(KEYWORD_IF)) {
             return parseIfElseStmt();
@@ -99,6 +108,54 @@ class Parser {
             return new Stmt.Block(parseBlock());
         }
         return parseExprStmt();
+    }
+    
+    private Stmt parseForStmt() {
+        consumeTokenOrThrow(LEFT_PAREN, "Expected '(' after 'for'.");
+
+        // Left-hand expression in the for loop, executed exactly once at start.
+        Stmt initializer;
+        if (consumeTokenIfMatchesAny(OPERATOR_SEMI)) {
+            initializer = null;
+        } else if (consumeTokenIfMatchesAny(KEYWORD_VAR)) {
+            initializer = parseVarDecl();
+        } else {
+            initializer = parseExprStmt();
+        }
+        
+        Expr condition = null;
+        if (!matchCurrentToken(OPERATOR_SEMI)) {
+            condition = parseExpression();
+        }
+        consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after loop condition.");
+        
+        Expr increment = null;
+        if (!matchCurrentToken(RIGHT_PAREN)) {
+            increment = parseExpression();
+        }
+        consumeTokenOrThrow(RIGHT_PAREN, "Expected ')' after for clause.");
+        
+        // Allow for nested for's, if-else's, prints, scopes, etc.
+        Stmt body = parseStatement();
+        
+        // If we have something to increment with, use it.
+        if (increment != null) {
+            body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
+        }
+        
+        // If no condition given, assume the user wants an infinite loop.
+        if (condition == null) {
+            condition = new Expr.Literal(true);
+        }
+        
+        // Given the above, we can now construct an in-memory while loop.
+        body = new Stmt.While(condition, body);
+        
+        // If there's an initializer, we run it before the loop is executed.
+        if (initializer != null) {
+            body = new Stmt.Block(Arrays.asList(initializer, body));
+        }
+        return body;
     }
     
     /* For nested and unscoped if-else, each else binds to the previous if. */

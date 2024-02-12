@@ -1,0 +1,9 @@
+var a = 0; // lol vscode thinks this file is javascript
+var temp;
+
+// Section 9.5.1 (near the end)
+for (var b = 1; a < 10000; b = temp + b) {
+    print(a);
+    temp = a;
+    a = b;
+}
