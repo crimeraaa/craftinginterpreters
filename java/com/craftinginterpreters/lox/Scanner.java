@@ -118,13 +118,13 @@ class Scanner {
                 this.line++;
                 break;
             case '"':
-                consumeString(); // Only works for string literals.
+                consumeStringLiteral();
                 break;
             default:
                 if (isDigit(c)) {
-                    consumeNumber(); // Only works for number literals.
+                    consumeNumberLiteral();
                 } else if (isAlpha(c)) {
-                    consumeIdent(); // May be identifier or keyword though!
+                    consumeKeywordOrIdent();
                 } else {
                     Lox.error(this.line, "Unexpected character.");
                 }
@@ -133,7 +133,7 @@ class Scanner {
     }
     
     /* Consumes a user's variable identifier OR a language keyword identifier. */
-    private void consumeIdent() {
+    private void consumeKeywordOrIdent() {
         while (isAlphaNumeric(peekCurrentChar()) && !isAtEnd()) {
             consumeChar();
         }
@@ -151,7 +151,7 @@ class Scanner {
     }
     
     /* Consume a number literal: it may be an integer or a decimal number. */
-    private void consumeNumber() {
+    private void consumeNumberLiteral() {
         while (isDigit(peekCurrentChar())) {
             consumeChar();
         }
@@ -168,7 +168,7 @@ class Scanner {
     }
     
     /* Consumes a string literal. */
-    private void consumeString() {
+    private void consumeStringLiteral() {
         while (peekCurrentChar() != '"' && !isAtEnd()) {
             if (peekCurrentChar() == '\n') {
                 this.line++;

@@ -25,4 +25,14 @@ class Environment {
         }
         throw new RuntimeError(name, "Undefined variable '" + ident + "'.");
     }
+    
+    /* Assign a new value to an already existing variable. */
+    void assignVariable(Token name, Object value) {
+        String ident = name.lexeme;
+        if (values.containsKey(ident)) {
+            values.put(ident, value);
+            return;
+        }
+        throw new RuntimeError(name, "Undefined variable '" + ident + "'.");
+    }
 }

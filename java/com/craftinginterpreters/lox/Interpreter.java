@@ -148,6 +148,17 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     } 
     
+    /** 
+     * Lox does not allow implicit variable declarations, but allows nested  
+     * expressions when assigning to a SINGLE variable.
+     */
+    @Override
+    public Object visitAssignExpr(Expr.Assign expr) {
+        Object value = evaluateExpression(expr.value);
+        environment.assignVariable(expr.name, value);
+        return value;
+    }
+    
     /* Recursively evaluate subexpressions until we're left with 2. */
     @Override
     public Object visitBinaryExpr(Expr.Binary expr) {

@@ -2,7 +2,7 @@ package com.craftinginterpreters.lox;
 
 class Token {
     final TokenType type;
-    final String lexeme; // character sequence, represents: name, stmt., expr., op.
+    final String lexeme; // Variable identifier or source code token.
     final Object literal; // Actual value in memory string and number literals.
     final int line;
 

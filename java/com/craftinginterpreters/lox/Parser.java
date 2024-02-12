@@ -22,7 +22,9 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * exprStmt     -> expression ";"
  * printStmt    -> "print" expression ";" ;
  *
- * expression   -> equality ;
+ * expression   -> assignment ;
+ * assignment   -> IDENTIFIER "=" assignment
+ *               | equality ;
  *
  * equality     -> comparison ( ( "!="|"==" ) comparison )* ;
  * comparison   -> terminal ( ( ">"|">="|"<"|"<=" ) terminal )* ;
@@ -102,7 +104,30 @@ class Parser {
 
     /* Redunant, but may improve readability: expression -> equality */
     private Expr parseExpression() {
-        return parseEquality();
+        return parseAssignment();
+    }
+    
+    /** 
+     * lvalues like the 2nd expression in `var a = 13; a = 42;` are special cases. 
+     * So Expr.Assign has a special case where it also keeps the left-hand side
+     * in order to evaluate assignment of alread existing variables.
+     */
+    private Expr parseAssignment() {
+        // Parses and evaluate left-side in full, may be an expression!
+        Expr expr = parseEquality(); 
+        // If '=' found this means we need to assign something to left side.
+        if (consumeTokenIfMatchesAny(TK_ASSIGN)) {
+            Token equals = peekPreviousToken();
+            Expr value = parseAssignment(); // Yay recursion
+            // If left-hand side is a variable name, convert rvalue to lvalue
+            if (expr instanceof Expr.Variable) {
+                Token name = ((Expr.Variable)expr).name;
+                return new Expr.Assign(name, value);
+            }
+            
+            logParseError(equals, "Invalid assignment target.");
+        }
+        return expr;
     }
     
     /* equality -> comparison ( ( "!="|"==" ) comparison )* ; */
@@ -191,6 +216,10 @@ class Parser {
         }
         // We just parsed a variable name or identifier.
         if (consumeTokenIfMatchesAny(TK_IDENT)) {
+            // TODO: Not sure how much I like this use of the comma operator.
+            if (consumeTokenIfMatchesAny(TK_COMMA)) {
+                return parseExpression();
+            }
             return new Expr.Variable(peekPreviousToken());
         }
         if (consumeTokenIfMatchesAny(TK_LPAREN)) {
@@ -218,12 +247,11 @@ class Parser {
      * All operands are *evaluated* but only the rightmost is returned.
       */
     private Expr parseCommaOrExpr(Object literal) {
-        Expr expr = new Expr.Literal(literal);
         if (consumeTokenIfMatchesAny(TK_COMMA)) {
             // Left expression and operand already updated counter propeerly
             return parseExpression();            
         }
-        return expr;
+        return new Expr.Literal(literal);
     }
     
     
