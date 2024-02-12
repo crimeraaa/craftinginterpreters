@@ -37,7 +37,7 @@ class Scanner {
         keywords.put("this", KEYWORD_THIS);
         keywords.put("super", KEYWORD_SUPER);
         // Builtin
-        keywords.put("print", KEYWORD_PRINT);
+        // keywords.put("print", KEYWORD_PRINT);
     }
 
     Scanner(String source) {

@@ -107,9 +107,9 @@ class Parser {
         if (consumeTokenIfMatchesAny(KEYWORD_IF)) {
             return parseIfElseStmt();
         }
-        if (consumeTokenIfMatchesAny(KEYWORD_PRINT)) {
-            return parsePrintStmt();
-        }
+        // if (consumeTokenIfMatchesAny(KEYWORD_PRINT)) {
+        //     return parsePrintStmt();
+        // }
         if (consumeTokenIfMatchesAny(KEYWORD_WHILE)) {
             return parseWhileStmt();
         }
@@ -181,11 +181,11 @@ class Parser {
         return new Stmt.If(condition, thenBranch, elseBranch);
     }
     
-    private Stmt parsePrintStmt() {
-        Expr value = parseExpression();
-        consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after value.");
-        return new Stmt.Print(value);
-    }
+    // private Stmt parsePrintStmt() {
+    //     Expr value = parseExpression();
+    //     consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after value.");
+    //     return new Stmt.Print(value);
+    // }
     
     private Stmt parseWhileStmt() {
         consumeTokenOrThrow(LEFT_PAREN, "Expected '(' after 'while'.");
@@ -442,13 +442,13 @@ class Parser {
      * It's analogous to expressions where a single one is expected.
      * All operands are *evaluated* but only the rightmost is returned.
       */
-    private Expr parseCommaOrExpr(Object literal) {
-        if (consumeTokenIfMatchesAny(OPERATOR_COMMA)) {
-            // Left expression and operand already updated counter propeerly
-            return parseExpression();            
-        }
-        return new Expr.Literal(literal);
-    }
+    // private Expr parseCommaOrExpr(Object literal) {
+    //     if (consumeTokenIfMatchesAny(OPERATOR_COMMA)) {
+    //         // Left expression and operand already updated counter propeerly
+    //         return parseExpression();            
+    //     }
+    //     return new Expr.Literal(literal);
+    // }
     
     
     /* Similar to matchCurrentToken but also throws an error if false. */
@@ -489,7 +489,7 @@ class Parser {
                 case KEYWORD_IF:
                 case KEYWORD_FOR:
                 case KEYWORD_WHILE:
-                case KEYWORD_PRINT:
+                // case KEYWORD_PRINT:
                 case KEYWORD_RETURN: return;
                 default: break;
             }

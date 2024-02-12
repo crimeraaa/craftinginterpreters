@@ -1,9 +1,11 @@
-print 13; // 13
-print 1 + 2; // 3
-print 1 + 2 * 3; // 7
-print (1 + 2) * 3; // 9
-print "Hi mom!"; // Hi mom!
-print "Fish" + " and " + "chips"; // Fish and chips
+// NOTE: Since I turned print into a builtin function, it requires parens.
+// This is different from the version in the book, since it's a builtin function.
+print(13); // 13
+print(1 + 2); // 3
+print(1 + 2 * 3); // 7
+print((1 + 2) * 3); // 9
+print("Hi mom!"); // Hi mom!
+print("Fish" + " and " + "chips"); // Fish and chips
 
 var alpha = "global alpha";
 var bravo = "global bravo";
@@ -13,17 +15,17 @@ var charlie = "global charlie";
     var bravo = "outer bravo";
     {
         var alpha = "inner alpha";
-        print "-- begin inner block --";
-        print alpha;
-        print bravo;
-        print charlie;
+        print("-- begin inner block --");
+        print(alpha);
+        print(bravo);
+        print(charlie);
     }
-    print "-- begin outer block --";
-    print alpha;
-    print bravo;
-    print charlie;
+    print("-- begin outer block --");
+    print(alpha);
+    print(bravo);
+    print(charlie);
 }
-print "-- begin global block --";
-print alpha;
-print bravo;
-print charlie;
+print("-- begin global block --");
+print(alpha);
+print(bravo);
+print(charlie);

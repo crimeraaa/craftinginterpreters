@@ -36,26 +36,26 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 return "<native fn>";
             }
         });
-        // Comment out before I commit to this!
-        // globals.defineVariable("print", new LoxCallable() {
-        //     @Override
-        //     public int arity() {
-        //         return 1;
-        //     }
+        // Instead of a keyword, let's make it a function.
+        globals.defineVariable("print", new LoxCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
             
-        //     @Override
-        //     public Object call(Interpreter interpreter, List<Object> arguments) {
-        //         for (Object argument : arguments) {
-        //             System.out.println(argument);
-        //         }
-        //         return null;
-        //     }
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                for (Object argument : arguments) {
+                    System.out.println(stringifyObject(argument));
+                }
+                return null;
+            }
             
-        //     @Override
-        //     public String toString() {
-        //         return "<native fn>";
-        //     }
-        // });
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
     }
     
     /* Take a syntax tree for an expression then try to evaluate it. */
