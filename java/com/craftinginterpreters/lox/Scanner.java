@@ -19,25 +19,25 @@ class Scanner {
     static {
         keywords = new HashMap<>();
         // Booleans
-        keywords.put("true", TK_TRUE);
-        keywords.put("false", TK_FALSE);
-        keywords.put("and", TK_AND); // Technically also control flow
-        keywords.put("or", TK_OR); // Technically also control flow
+        keywords.put("true", KEYWORD_TRUE);
+        keywords.put("false", KEYWORD_FALSE);
+        keywords.put("and", KEYWORD_AND); // Technically also control flow
+        keywords.put("or", KEYWORD_OR); // Technically also control flow
         // Control flow
-        keywords.put("if", TK_IF);
-        keywords.put("else", TK_ELSE);
-        keywords.put("for", TK_FOR);
-        keywords.put("while", TK_WHILE);
-        keywords.put("return", TK_RETURN);
+        keywords.put("if", KEYWORD_IF);
+        keywords.put("else", KEYWORD_ELSE);
+        keywords.put("for", KEYWORD_FOR);
+        keywords.put("while", KEYWORD_WHILE);
+        keywords.put("return", KEYWORD_RETURN);
         // Types
-        keywords.put("fun", TK_FUN);
-        keywords.put("class", TK_CLASS);
-        keywords.put("nil", TK_NIL);
-        keywords.put("var", TK_VAR);
-        keywords.put("this", TK_THIS);
-        keywords.put("super", TK_SUPER);
+        keywords.put("fun", KEYWORD_FUN);
+        keywords.put("class", KEYWORD_CLASS);
+        keywords.put("nil", KEYWORD_NIL);
+        keywords.put("var", KEYWORD_VAR);
+        keywords.put("this", KEYWORD_THIS);
+        keywords.put("super", KEYWORD_SUPER);
         // Builtin
-        keywords.put("print", TK_PRINT);
+        keywords.put("print", KEYWORD_PRINT);
     }
 
     Scanner(String source) {
@@ -51,36 +51,36 @@ class Scanner {
             scanToken();
         }
         // end-of-file token to indicate this is where parsing ends.
-        this.tokens.add(new Token(TK_EOF, "", null, this.line));
+        this.tokens.add(new Token(END_OF_FILE, "", null, this.line));
         return this.tokens;
     }
     
     private void scanToken() {
         char c = consumeChar(); // This increments `this.current`.
         switch (c) {
-            case '(': addToken(TK_LPAREN); break;
-            case ')': addToken(TK_RPAREN); break;
-            case '{': addToken(TK_LBRACE); break;
-            case '}': addToken(TK_RBRACE); break;
-            case ',': addToken(TK_COMMA); break;
-            case '.': addToken(TK_PERIOD); break;
-            case '-': addToken(TK_MINUS); break;
-            case '+': addToken(TK_PLUS); break;
-            case ';': addToken(TK_SEMI); break;
-            case '*': addToken(TK_STAR); break;
+            case '(': addToken(LEFT_PAREN); break;
+            case ')': addToken(RIGHT_PAREN); break;
+            case '{': addToken(LEFT_BRACE); break;
+            case '}': addToken(RIGHT_BRACE); break;
+            case ',': addToken(OPERATOR_COMMA); break;
+            case '.': addToken(OPERATOR_DOT); break;
+            case '-': addToken(OPERATOR_SUB); break;
+            case '+': addToken(OPERATOR_ADD); break;
+            case ';': addToken(OPERATOR_SEMI); break;
+            case '*': addToken(OPERATOR_MUL); break;
             case '!':
                 // both ! and != must be parsed as 1 lexeme, not separate tokens!
-                addToken(consumeCharOnlyIf('=') ? TK_COMPARE_NEQ : TK_COMPARE_NOT);
+                addToken(consumeCharOnlyIf('=') ? OPERATOR_NEQ : OPERATOR_NOT);
                 break;
             case '=':
                 // Ditto for = and ==, see above.
-                addToken(consumeCharOnlyIf('=') ? TK_COMPARE_EQ : TK_ASSIGN);
+                addToken(consumeCharOnlyIf('=') ? OPERATOR_EQ : OPERATOR_ASSIGN);
                 break;
             case '<':
-                addToken(consumeCharOnlyIf('=') ? TK_COMPARE_LE : TK_COMPARE_LT);
+                addToken(consumeCharOnlyIf('=') ? OPERATOR_LE : OPERATOR_LT);
                 break;
             case '>':
-                addToken(consumeCharOnlyIf('=') ? TK_COMPARE_GE : TK_COMPARE_GT);
+                addToken(consumeCharOnlyIf('=') ? OPERATOR_GE : OPERATOR_GT);
                 break;
             case '/':
                 // A comment goes until the end of the current line.
@@ -90,25 +90,8 @@ class Scanner {
                         consumeChar(); // Comment's content is not relevant to us
                     }
                 } else {
-                    addToken(TK_SLASH); // Probably division
+                    addToken(OPERATOR_DIV); // Probably division
                 }
-                break;
-            case '?': // cond: TK_*, TK_TERNARY_IF, lhs: TK_*, rhs: TK_*
-                if (!peekAheadUntilMatches(':')) {
-                    Lox.error(this.line, "Unmatched ternary if.");
-                    break;
-                }
-                addToken(TK_TERNARY_IF);
-                scanToken();
-                break;
-            case ':': 
-                // Ensure that something followed the '?'
-                Token previous2 = this.tokens.get(this.tokens.size() - 2);
-                // Don't confuse TK_IF which is specifically for the "if" keyword
-                if (previous2.type == TK_TERNARY_IF) {
-                    addToken(TK_TERNARY_ELSE);
-                }
-                // TODO: Handle incomplete statment like `(1 == 1) ? true :`
                 break;
             case ' ':
             case '\r':
@@ -145,7 +128,7 @@ class Scanner {
         TokenType type = keywords.get(text);
         // Not a keyword so assume it's a user variable
         if (type == null) {
-            return TK_IDENT;
+            return IDENTIFIER;
         }
         return type;
     }
@@ -164,7 +147,7 @@ class Scanner {
         }
         String text = this.source.substring(this.start, this.current);
         double literal = Double.parseDouble(text);
-        addToken(TK_NUMBER, literal);
+        addToken(TokenType.NUMBER_LITERAL, literal);
     }
     
     /* Consumes a string literal. */
@@ -185,7 +168,7 @@ class Scanner {
 
         // Retrieve the string literal but trim its surrounding quotes.
         String literal = this.source.substring(this.start + 1, this.current - 1);
-        addToken(TK_STRING, literal);
+        addToken(STRING_LITERAL, literal);
     }
     
     /* Only consume the character/update counter if it matches. */
@@ -214,10 +197,6 @@ class Scanner {
             return '\0';
         }
         return this.source.charAt(this.current + 1);
-    }
-    
-    private boolean peekAheadUntilMatches(char expected) {
-        return this.source.indexOf(expected, this.current) != -1;
     }
     
     /* Assuming ASCII, based off the following regex: [0-9a-zA-Z_] or \w */

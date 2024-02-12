@@ -36,9 +36,9 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     public Object visitUnaryExpr(Expr.Unary expr) {
         Object right = evaluateExpression(expr.right);
         switch (expr.operator.type) {
-            case TK_COMPARE_NOT:
+            case OPERATOR_NOT:
                 return !isTruthy(right);
-            case TK_MINUS: 
+            case OPERATOR_SUB: 
                 checkNumberOperand(expr.operator, right);
                 return -(double)right; // This cast may fail!
             default: 
@@ -81,7 +81,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return a.equals(b);
     }
     
-    private String stringify(Object object) {
+    private String stringifyObject(Object object) {
         if (object == null) {
             return "nil";
         }
@@ -151,9 +151,19 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
     
     @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluateExpression(stmt.condition))) {
+            executeStatement(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            executeStatement(stmt.elseBranch);
+        }
+        return null;
+    }
+    
+    @Override
     public Void visitPrintStmt(Stmt.Print stmt) {
         Object value = evaluateExpression(stmt.expression);
-        System.out.println(stringify(value));
+        System.out.println(stringifyObject(value));
         return null;
     }
     
@@ -167,6 +177,14 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         environment.defineVariable(stmt.name.lexeme, value);
         return null;
     } 
+    
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        while (isTruthy(evaluateExpression(stmt.condition))) {
+            executeStatement(stmt.body);
+        }
+        return null;
+    }
     
     /** 
      * Lox does not allow implicit variable declarations, but allows nested  
@@ -186,7 +204,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         Object right = evaluateExpression(expr.right);
 
         switch(expr.operator.type) {
-            case TK_PLUS:
+            case OPERATOR_ADD:
                 if (left instanceof Double && right instanceof Double) {
                     return (double)left + (double)right;
                 }
@@ -197,31 +215,31 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 // If both operands aren't the same type, too bad!
                 throw new RuntimeError(expr.operator, 
                     "Operands must be two numbers or two strings.");
-            case TK_MINUS:
+            case OPERATOR_SUB:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left - (double)right;
-            case TK_SLASH:
+            case OPERATOR_DIV:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left / (double)right;
-            case TK_STAR:
+            case OPERATOR_MUL:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left * (double)right;
-            case TK_COMPARE_GT:
+            case OPERATOR_GT:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left > (double)right;
-            case TK_COMPARE_GE:
+            case OPERATOR_GE:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left >= (double)right;
-            case TK_COMPARE_LT:
+            case OPERATOR_LT:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left < (double)right;
-            case TK_COMPARE_LE:
+            case OPERATOR_LE:
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left <= (double)right;
-            case TK_COMPARE_EQ:
+            case OPERATOR_EQ:
                 checkNumberOperands(expr.operator, left, right);
                 return isEqual(left, right);
-            case TK_COMPARE_NEQ:
+            case OPERATOR_NEQ:
                 checkNumberOperands(expr.operator, left, right);
                 return !isEqual(left, right);
             default:

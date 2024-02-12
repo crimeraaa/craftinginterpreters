@@ -1,8 +1,8 @@
 package com.craftinginterpreters.lox;
-
 import java.util.ArrayList;
 import java.util.List;
 
+// Specifically has to be import static to bring enum members into global scope.
 import static com.craftinginterpreters.lox.TokenType.*;
 
 /**
@@ -18,8 +18,14 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * varDecl      -> "var" IDENTIFIER ( "=" expression )? ";" ;
  *
  * statement    -> exprStmt
+ *               | ifStmt 
  *               | printStmt 
+ *               | whileStmt
  *               | block ;
+ *               
+ * whileStmt    -> "while" "(" expression ")" statement ;
+ * 
+ * ifStmt       -> "if" "(" expression ")" statement ( "else" statement )? ;
  * 
  * block        -> "{" declaration* "}" ;
  * 
@@ -28,7 +34,10 @@ import static com.craftinginterpreters.lox.TokenType.*;
  *
  * expression   -> assignment ;
  * assignment   -> IDENTIFIER "=" assignment
- *               | equality ;
+ *               | logic_or ;
+ * 
+ * logic_or     -> logic_and ( "or" logic_and )* ;
+ * logic_and    -> equality ( "and" equality )* ;
  *
  * equality     -> comparison ( ( "!="|"==" ) comparison )* ;
  * comparison   -> terminal ( ( ">"|">="|"<"|"<=" ) terminal )* ;
@@ -65,7 +74,7 @@ class Parser {
     
     private Stmt parseDeclaration() {
         try {
-            if (consumeTokenIfMatchesAny(TK_VAR)) {
+            if (consumeTokenIfMatchesAny(KEYWORD_VAR)) {
                 return parseVarDecl();
             }
             return parseStatement();
@@ -77,44 +86,72 @@ class Parser {
     
     private Stmt parseStatement() {
         // It's very important to consume the print token beforehand!!!
-        if (consumeTokenIfMatchesAny(TK_PRINT)) {
+        if (consumeTokenIfMatchesAny(KEYWORD_IF)) {
+            return parseIfElseStmt();
+        }
+        if (consumeTokenIfMatchesAny(KEYWORD_PRINT)) {
             return parsePrintStmt();
         }
-        if (consumeTokenIfMatchesAny(TK_LBRACE)) {
+        if (consumeTokenIfMatchesAny(KEYWORD_WHILE)) {
+            return parseWhileStmt();
+        }
+        if (consumeTokenIfMatchesAny(LEFT_BRACE)) {
             return new Stmt.Block(parseBlock());
         }
         return parseExprStmt();
     }
     
+    /* For nested and unscoped if-else, each else binds to the previous if. */
+    private Stmt parseIfElseStmt() {
+        consumeTokenOrThrow(LEFT_PAREN, "Expected '(' after 'if'.");
+        Expr condition = parseExpression();
+        consumeTokenOrThrow(RIGHT_PAREN, "Expected ')' after if condition.");
+
+        Stmt thenBranch = parseStatement();
+        Stmt elseBranch = null;
+        if (consumeTokenIfMatchesAny(KEYWORD_ELSE)) {
+            elseBranch = parseStatement();
+        }
+        return new Stmt.If(condition, thenBranch, elseBranch);
+    }
+    
     private Stmt parsePrintStmt() {
         Expr value = parseExpression();
-        consumeTokenOrThrow(TK_SEMI, "Expected ';' after value.");
+        consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after value.");
         return new Stmt.Print(value);
     }
     
+    private Stmt parseWhileStmt() {
+        consumeTokenOrThrow(LEFT_PAREN, "Expected '(' after 'while'.");
+        Expr condition = parseExpression();
+        consumeTokenOrThrow(RIGHT_PAREN, "Expected ')' after condition.");
+        Stmt body = parseStatement();
+        return new Stmt.While(condition, body);
+    }
+    
     private Stmt parseVarDecl() {
-        Token name = consumeTokenOrThrow(TK_IDENT, "Expected a variable name.");
+        Token name = consumeTokenOrThrow(IDENTIFIER, "Expected a variable name.");
         Expr initializer = null; // If no '=' found, default to null.
         // If '=' found, consume it then parse whatever the assignment is.
-        if (consumeTokenIfMatchesAny(TK_ASSIGN)) {
+        if (consumeTokenIfMatchesAny(OPERATOR_ASSIGN)) {
             initializer = parseExpression();
         }
-        consumeTokenOrThrow(TK_SEMI, "Expected ';' after variable declaration.");
+        consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after variable declaration.");
         return new Stmt.Var(name, initializer);
     }
     
     private Stmt parseExprStmt() {
         Expr expr = parseExpression();
-        consumeTokenOrThrow(TK_SEMI, "Expected ';' after expression.");
+        consumeTokenOrThrow(OPERATOR_SEMI, "Expected ';' after expression.");
         return new Stmt.Expression(expr);
     }
     
     private List<Stmt> parseBlock() {
         List<Stmt> statements = new ArrayList<>();
-        while (!matchCurrentToken(TK_RBRACE) && !isAtEnd()) {
+        while (!matchCurrentToken(RIGHT_BRACE) && !isAtEnd()) {
             statements.add(parseDeclaration());
         }
-        consumeTokenOrThrow(TK_RBRACE, "Expected '}' after block.");
+        consumeTokenOrThrow(RIGHT_BRACE, "Expected '}' after block.");
         return statements;
     }
 
@@ -132,7 +169,7 @@ class Parser {
         // Parses and evaluate left-side in full, may be an expression!
         Expr expr = parseEquality(); 
         // If '=' found this means we need to assign something to left side.
-        if (consumeTokenIfMatchesAny(TK_ASSIGN)) {
+        if (consumeTokenIfMatchesAny(OPERATOR_ASSIGN)) {
             Token equals = peekPreviousToken();
             Expr value = parseAssignment(); // Yay recursion
             // If left-hand side is a variable name, convert rvalue to lvalue
@@ -152,7 +189,7 @@ class Parser {
         Expr expr = parseComparison();
 
         // Match != or == to indicate a nested expression, otherwise expr ends.
-        while (consumeTokenIfMatchesAny(TK_COMPARE_NEQ, TK_COMPARE_EQ)) {
+        while (consumeTokenIfMatchesAny(OPERATOR_NEQ, OPERATOR_EQ)) {
             Token operator = peekPreviousToken();
             Expr right = parseComparison();
             expr = new Expr.Binary(expr, operator, right);
@@ -164,7 +201,7 @@ class Parser {
     private Expr parseComparison() {
         Expr expr = parseTerminal();
         
-        while (consumeTokenIfMatchesAny(TK_COMPARE_GT, TK_COMPARE_GE, TK_COMPARE_LT, TK_COMPARE_LE)) {
+        while (consumeTokenIfMatchesAny(OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE)) {
             Token operator = peekPreviousToken();
             Expr right = parseTerminal();
             expr = new Expr.Binary(expr, operator, right);
@@ -177,7 +214,7 @@ class Parser {
     private Expr parseTerminal() {
         Expr expr = parseFactor();
 
-        while (consumeTokenIfMatchesAny(TK_MINUS, TK_PLUS)) {
+        while (consumeTokenIfMatchesAny(OPERATOR_SUB, OPERATOR_ADD)) {
             Token operator = peekPreviousToken();
             Expr right = parseFactor();
             expr = new Expr.Binary(expr, operator, right);
@@ -189,7 +226,7 @@ class Parser {
     private Expr parseFactor() {
         Expr expr = parseUnary();
 
-        while (consumeTokenIfMatchesAny(TK_SLASH, TK_STAR)) {
+        while (consumeTokenIfMatchesAny(OPERATOR_DIV, OPERATOR_MUL)) {
             Token operator = peekPreviousToken();
             Expr right = parseUnary();
             expr = new Expr.Binary(expr, operator, right);
@@ -200,7 +237,7 @@ class Parser {
     
     /* unary -> ("!"|"-") unary | primary ; */
     private Expr parseUnary() {
-        if (consumeTokenIfMatchesAny(TK_COMPARE_NOT, TK_MINUS)) {
+        if (consumeTokenIfMatchesAny(OPERATOR_NOT, OPERATOR_SUB)) {
             Token operator = peekPreviousToken();
             Expr right = parseUnary();
             return new Expr.Unary(operator, right);
@@ -217,30 +254,30 @@ class Parser {
      *          | expression ( "," expression )+ ; 
      */
     private Expr parsePrimary() {
-        if (consumeTokenIfMatchesAny(TK_FALSE)) {
+        if (consumeTokenIfMatchesAny(KEYWORD_FALSE)) {
             return parseCommaOrExpr(false);
         }
-        if (consumeTokenIfMatchesAny(TK_TRUE)) {
+        if (consumeTokenIfMatchesAny(KEYWORD_TRUE)) {
             return parseCommaOrExpr(true);
         }
-        if (consumeTokenIfMatchesAny(TK_NIL)) {
+        if (consumeTokenIfMatchesAny(KEYWORD_NIL)) {
             return parseCommaOrExpr(null);
         }
         // Our scanner/lexer already retrieved the in-memory object of this.
-        if (consumeTokenIfMatchesAny(TK_NUMBER, TK_STRING)) {
+        if (consumeTokenIfMatchesAny(NUMBER_LITERAL, STRING_LITERAL)) {
             return parseCommaOrExpr(peekPreviousToken().literal);
         }
         // We just parsed a variable name or identifier.
-        if (consumeTokenIfMatchesAny(TK_IDENT)) {
+        if (consumeTokenIfMatchesAny(IDENTIFIER)) {
             // TODO: Not sure how much I like this use of the comma operator.
-            if (consumeTokenIfMatchesAny(TK_COMMA)) {
+            if (consumeTokenIfMatchesAny(OPERATOR_COMMA)) {
                 return parseExpression();
             }
             return new Expr.Variable(peekPreviousToken());
         }
-        if (consumeTokenIfMatchesAny(TK_LPAREN)) {
+        if (consumeTokenIfMatchesAny(LEFT_PAREN)) {
             Expr expr = parseExpression();
-            consumeTokenOrThrow(TK_RPAREN, "Expected ')' after expression.");
+            consumeTokenOrThrow(RIGHT_PAREN, "Expected ')' after expression.");
             return new Expr.Grouping(expr);
         }
 
@@ -248,9 +285,9 @@ class Parser {
         Token token = peekCurrentToken();
         switch (token.type) {
             // Allow for unary minus though
-            case TK_PLUS:
-            case TK_SLASH:
-            case TK_STAR:
+            case OPERATOR_ADD:
+            case OPERATOR_DIV:
+            case OPERATOR_MUL:
                 throw logParseError(token, "Expected a left operand");
             default:
                 throw logParseError(token, "Expected an expression.");
@@ -263,7 +300,7 @@ class Parser {
      * All operands are *evaluated* but only the rightmost is returned.
       */
     private Expr parseCommaOrExpr(Object literal) {
-        if (consumeTokenIfMatchesAny(TK_COMMA)) {
+        if (consumeTokenIfMatchesAny(OPERATOR_COMMA)) {
             // Left expression and operand already updated counter propeerly
             return parseExpression();            
         }
@@ -297,20 +334,20 @@ class Parser {
 
         while (!isAtEnd()) {
             // Semicolons indicate a finished statement. (or they SHOULD at least)
-            if (peekPreviousToken().type == TK_SEMI) {
+            if (peekPreviousToken().type == OPERATOR_SEMI) {
                 return;
             }
             // Any of the labelled tokens indicate we're about to start a statement.
             // For the rest, we just keep consuming tokens.
             switch (peekCurrentToken().type) {
-                case TK_CLASS:
-                case TK_FUN:
-                case TK_VAR:
-                case TK_IF:
-                case TK_FOR:
-                case TK_WHILE:
-                case TK_PRINT:
-                case TK_RETURN: return;
+                case KEYWORD_CLASS:
+                case KEYWORD_FUN:
+                case KEYWORD_VAR:
+                case KEYWORD_IF:
+                case KEYWORD_FOR:
+                case KEYWORD_WHILE:
+                case KEYWORD_PRINT:
+                case KEYWORD_RETURN: return;
                 default: break;
             }
             consumeToken();
@@ -351,7 +388,7 @@ class Parser {
     }
     
     private boolean isAtEnd() {
-        return peekCurrentToken().type == TK_EOF;
+        return peekCurrentToken().type == END_OF_FILE;
     }
 
     private Token peekCurrentToken() {

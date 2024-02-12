@@ -84,7 +84,7 @@ public class Lox {
     }
     
     static void error(Token token, String message) {
-        if (token.type == TokenType.TK_EOF) {
+        if (token.type == TokenType.END_OF_FILE) {
             report(token.line, " at end", message);
         } else {
             report(token.line, " at '" + token.lexeme + "'", message);

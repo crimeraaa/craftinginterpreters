@@ -59,9 +59,9 @@ class AstPrinter implements Expr.Visitor<String> {
     public static void main(String[] args) {
         Expr expression = new Expr.Binary(
             new Expr.Unary(
-                new Token(TokenType.TK_MINUS, "-", null, 1),
+                new Token(TokenType.OPERATOR_SUB, "-", null, 1),
                 new Expr.Literal(123)),
-            new Token(TokenType.TK_STAR, "*", null, 1), 
+            new Token(TokenType.OPERATOR_MUL, "*", null, 1), 
             new Expr.Grouping(new Expr.Literal(45.67)));
         
         System.out.println(new AstPrinter().print(expression));
