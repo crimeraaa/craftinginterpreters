@@ -1,0 +1,10 @@
+fun greetA(name) {
+    print "Hi " + name + "!";
+}
+
+fun greetB(first, last) {
+    print "Hi " + first + " " + last + "!";
+}
+
+greetA("Bobby");
+greetB("Bobby", "Tables");

@@ -14,8 +14,14 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * 
  * program      -> declaration* EOF ;
  * 
- * declaration  -> varDecl
+ * declaration  -> funDecl
+ *               | varDecl
  *               | statement ;
+ *
+ * funDecl      -> "fun" function ;
+ * function     -> IDENTIFIER "(" parameters? ")" block;
+ * parameters   -> IDENTIFIER ( "," IDENTIFIER )* ;
+ *
  * varDecl      -> "var" IDENTIFIER ( "=" expression )? ";" ;
  *
  * statement    -> exprStmt
@@ -24,13 +30,10 @@ import static com.craftinginterpreters.lox.TokenType.*;
  *               | printStmt 
  *               | whileStmt
  *               | block ;
- *               
  * forStmt      -> "for" "(" ( varDecl | exprStmt | ";" ) ")"
  *                  expression? ";"
  *                  expression? ")" statement ;
- *               
  * whileStmt    -> "while" "(" expression ")" statement ;
- * 
  * ifStmt       -> "if" "(" expression ")" statement ( "else" statement )? ;
  * 
  * block        -> "{" declaration* "}" ;
@@ -49,8 +52,11 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * comparison   -> terminal ( ( ">"|">="|"<"|"<=" ) terminal )* ;
  * terminal     -> factor ( ( "-"|"+" ) factor)* ;
  * factor       -> unary ( ( "/"|"*" ) unary )* ;
+ *
  * unary        -> ( "!"|"-" ) unary
- *               | primary ;
+ *               | call ;
+ * call         -> primary ( "(" arguments? ")" )* ;
+ * arguments    -> expression ( "," expression )* ;
  * primary      -> NUMBER_LITERAL | STRING_LITERAL 
  *               | "true" | "false" | "nil"
  *               | "(" expression ")" 
@@ -80,6 +86,9 @@ class Parser {
     
     private Stmt parseDeclaration() {
         try {
+            if (consumeTokenIfMatchesAny(KEYWORD_FUN)) {
+                return parseFunction("function");
+            }
             if (consumeTokenIfMatchesAny(KEYWORD_VAR)) {
                 return parseVarDecl();
             }
@@ -203,6 +212,29 @@ class Parser {
         return new Stmt.Expression(expr);
     }
     
+    /**
+     * kind may be one of "function" or "method" to differentiate freestanding 
+     * functions and class methods.
+     */
+    private Stmt.Function parseFunction(String kind) {
+        Token name = consumeTokenOrThrow(IDENTIFIER, "Expected " + kind + "name.");
+        consumeTokenOrThrow(LEFT_PAREN, "Expected '( after " + kind + " name.");
+        List<Token> parameters = new ArrayList<>();
+        if (!matchCurrentToken(RIGHT_PAREN)) {
+            do {
+                if (parameters.size() >= 255) {
+                    logParseError(peekCurrentToken(), "Can't have more than 255 parameters.");
+                }
+                parameters.add(consumeTokenOrThrow(IDENTIFIER, "Expected parameter name."));
+            } while (consumeTokenIfMatchesAny(OPERATOR_COMMA));
+        }
+        consumeTokenOrThrow(RIGHT_PAREN, "Expected ')' after parameters.");
+        consumeTokenOrThrow(LEFT_BRACE, "Expected '{' before " + kind + " body.");
+        // parseBlock assumes the left brace was already consumed.
+        List<Stmt> body = parseBlock();
+        return new Stmt.Function(name, parameters, body);
+    }
+    
     private List<Stmt> parseBlock() {
         List<Stmt> statements = new ArrayList<>();
         while (!matchCurrentToken(RIGHT_BRACE) && !isAtEnd()) {
@@ -324,7 +356,40 @@ class Parser {
             Expr right = parseUnary();
             return new Expr.Unary(operator, right);
         }
-        return parsePrimary();
+        return parseCall();
+    }
+    
+    private Expr parseCall() {
+        Expr expr = parsePrimary();
+
+        while (true) {
+            // Parse a calling expr using the previous parsed expr as callee.
+            if (consumeTokenIfMatchesAny(LEFT_PAREN)) {
+                expr = finishCall(expr);
+            } else {
+                break;
+            }
+        }
+        return expr;
+    }
+    
+    private Expr finishCall(Expr callee) {
+        List<Expr> arguments = new ArrayList<>();
+        // This check allows for 0 arguments by not populating the args list.
+        if (!matchCurrentToken(RIGHT_PAREN)) {
+            // Section 10.1.1: C requires implementations support at least 127,
+            //                 Java requires no more than 255 arguments.
+            if (arguments.size() >= 255) {
+                logParseError(peekCurrentToken(), "Can't have more than 255 arguments.");
+            }
+            // Retrieve a list of all this function call's arguments.
+            do {
+                arguments.add(parseExpression());
+            } // Very important to consume the comma to proceed to the next arg!
+            while (consumeTokenIfMatchesAny(OPERATOR_COMMA));
+        }
+        Token paren = consumeTokenOrThrow(RIGHT_PAREN, "Expected ')' after arguments.");
+        return new Expr.Call(callee, paren, arguments);
     }
 
     /**
@@ -337,24 +402,20 @@ class Parser {
      */
     private Expr parsePrimary() {
         if (consumeTokenIfMatchesAny(KEYWORD_FALSE)) {
-            return parseCommaOrExpr(false);
+            return new Expr.Literal(false);
         }
         if (consumeTokenIfMatchesAny(KEYWORD_TRUE)) {
-            return parseCommaOrExpr(true);
+            return new Expr.Literal(true);
         }
         if (consumeTokenIfMatchesAny(KEYWORD_NIL)) {
-            return parseCommaOrExpr(null);
+            return new Expr.Literal(null);
         }
         // Our scanner/lexer already retrieved the in-memory object of this.
         if (consumeTokenIfMatchesAny(NUMBER_LITERAL, STRING_LITERAL)) {
-            return parseCommaOrExpr(peekPreviousToken().literal);
+            return new Expr.Literal(peekPreviousToken().literal);
         }
         // We just parsed a variable name or identifier.
         if (consumeTokenIfMatchesAny(IDENTIFIER)) {
-            // TODO: Not sure how much I like this use of the comma operator.
-            if (consumeTokenIfMatchesAny(OPERATOR_COMMA)) {
-                return parseExpression();
-            }
             return new Expr.Variable(peekPreviousToken());
         }
         if (consumeTokenIfMatchesAny(LEFT_PAREN)) {

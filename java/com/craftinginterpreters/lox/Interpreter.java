@@ -1,5 +1,6 @@
 package com.craftinginterpreters.lox;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -12,8 +13,50 @@ import java.util.List;
  * Expressions produce values but statements do not.
  */
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
-    // Store all our variables as long as this interpreter instance runs.
-    private Environment environment = new Environment();
+    // Fixed references to the outermost global environment.
+    final Environment globals = new Environment();
+    // Track changes as we enter and exit local scopes: the current environment.
+    private Environment environment = globals;
+    
+    Interpreter() {
+        // Creates a global builtin function called clock().
+        globals.defineVariable("clock", new LoxCallable() {
+            @Override
+            public int arity() {
+                return 0;
+            }
+
+            @Override 
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                return (double)System.currentTimeMillis() / 1000.0;
+            }
+            
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+        // Comment out before I commit to this!
+        // globals.defineVariable("print", new LoxCallable() {
+        //     @Override
+        //     public int arity() {
+        //         return 1;
+        //     }
+            
+        //     @Override
+        //     public Object call(Interpreter interpreter, List<Object> arguments) {
+        //         for (Object argument : arguments) {
+        //             System.out.println(argument);
+        //         }
+        //         return null;
+        //     }
+            
+        //     @Override
+        //     public String toString() {
+        //         return "<native fn>";
+        //     }
+        // });
+    }
     
     /* Take a syntax tree for an expression then try to evaluate it. */
     void interpret(List<Stmt> statements) {
@@ -169,6 +212,15 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
     
     @Override
+    public Void visitFunctionStmt(Stmt.Function stmt) {
+        // Create a function syntax node, or the compile-time representation.
+        LoxFunction function = new LoxFunction(stmt);
+        // Create the runtime representation of our function.
+        this.environment.defineVariable(stmt.name.lexeme, function);
+        return null;
+    }
+    
+    @Override
     public Void visitIfStmt(Stmt.If stmt) {
         if (isTruthy(evaluateExpression(stmt.condition))) {
             executeStatement(stmt.thenBranch);
@@ -265,6 +317,24 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
         // Unreachable unless you do something really cursed.
         return null;
+    }
+    
+    @Override
+    public Object visitCallExpr(Expr.Call expr) {
+        Object callee = evaluateExpression(expr.callee);
+        List<Object> arguments = new ArrayList<>();
+        for (Expr argument : expr.arguments) {
+            arguments.add(evaluateExpression(argument));
+        }
+        if (!(callee instanceof LoxCallable)) {
+            throw new RuntimeError(expr.paren, "Can only call functions and classes.");
+        }
+        LoxCallable function = (LoxCallable)callee;
+        if (arguments.size() != function.arity()) {
+            throw new RuntimeError(expr.paren, 
+                "Expected " + function.arity() + " arguments but got " + arguments.size() + ".");
+        }
+        return function.call(this, arguments);
     }
 
     private void checkNumberOperands(Token operator, Object left, Object right) {
