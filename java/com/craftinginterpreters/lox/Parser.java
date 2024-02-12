@@ -224,7 +224,7 @@ class Parser {
      */
     private Expr parseAssignment() {
         // Parses and evaluate left-side in full, may be an expression!
-        Expr expr = parseEquality(); 
+        Expr expr = parseOrExpr(); 
         // If '=' found this means we need to assign something to left side.
         if (consumeTokenIfMatchesAny(OPERATOR_ASSIGN)) {
             Token equals = peekPreviousToken();
@@ -237,6 +237,31 @@ class Parser {
             
             logParseError(equals, "Invalid assignment target.");
         }
+        return expr;
+    }
+    
+    /* In Lox, or is a higher precedence than and. For some reason... */
+    private Expr parseOrExpr() {
+        Expr expr = parseAndExpr();
+
+        while (consumeTokenIfMatchesAny(KEYWORD_OR)) {
+            Token operator = peekPreviousToken();
+            Expr right = parseAndExpr();
+            expr = new Expr.Logical(expr, operator, right);
+        }
+        
+        return expr;
+    }
+    
+    private Expr parseAndExpr() {
+        Expr expr = parseEquality();
+
+        while (consumeTokenIfMatchesAny(KEYWORD_AND)) {
+            Token operator = peekPreviousToken();
+            Expr right = parseEquality();
+            expr = new Expr.Logical(expr, operator, right);
+        }
+        
         return expr;
     }
     

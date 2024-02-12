@@ -33,6 +33,24 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
     
     @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluateExpression(expr.left);
+
+        // These checks actually implement the "short circuiting" behavior.
+        if (expr.operator.type == TokenType.KEYWORD_OR) {
+            if (isTruthy(left)) {
+                return left;
+            }
+        } else {
+            if (!isTruthy(left)) {
+                return left;
+            }
+        }
+        
+        return evaluateExpression(expr.right);
+    }
+    
+    @Override
     public Object visitUnaryExpr(Expr.Unary expr) {
         Object right = evaluateExpression(expr.right);
         switch (expr.operator.type) {
