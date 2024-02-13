@@ -21,7 +21,7 @@ static int lox_simple_instruction(const char *name, int offset)
 
 static int lox_constant_instruction(const char *name, LoxChunk *chunk, int offset)
 {
-    uint8_t constant = chunk->code[offset - 1]; // Index into the constants pool
+    uint8_t constant = chunk->code[offset + 1]; // Index into the constants pool
     printf("%-16s %4d '", name, constant);
     lox_print_value(chunk->constants.values[constant]);
     printf("'\n");
