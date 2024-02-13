@@ -13,9 +13,9 @@ typedef struct {
     LoxValue *values;
 } LoxValueArray; 
 
-void lox_init_valuearray(LoxValueArray *array);
-void lox_write_valuearray(LoxValueArray *array, LoxValue value);
-void lox_free_valuearray(LoxValueArray *array);
-void lox_print_value(LoxValue value);
+void valuearray_init(LoxValueArray *array);
+void valuearray_write(LoxValueArray *array, LoxValue value);
+void valuearray_free(LoxValueArray *array);
+void value_print(LoxValue value);
 
 #endif /* CLOX_VALUE_H */

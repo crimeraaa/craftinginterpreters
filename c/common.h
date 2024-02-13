@@ -7,6 +7,9 @@
 #include <stdint.h>     /* fixed width integer types! */
 #include <stdio.h>      /* printf */
 
+/* III:15.1.2 */
+#define DEBUG_TRACE_EXECUTION
+
 /* Meant for macros like `__LINE__`, so that they are expanded beforehand. */
 #define lox_xtostring(expanded) #expanded
 #define lox_stringify(toexpand) lox_xtostring(toexpand)

@@ -4,18 +4,18 @@
 #include "common.h"
 
 /* Start arrays off with 8 elements, or grow them by factors of 2. */
-#define LOX_GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
+#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 
 /** 
  * Think of this like a C++ templated function, but worse! 
  * Note that we wrap `oldcapacity` in parentheses so that if it's another macro
  * or expression in itself, we can correctly evaluate it first.
  */
-#define LOX_GROW_ARRAY(T, pointer, oldcapacity, newcapacity) \
+#define GROW_ARRAY(T, pointer, oldcapacity, newcapacity) \
     reallocate(pointer, sizeof(T) * (oldcapacity), sizeof(T) * (newcapacity))
 
 /* Indicates to `reallocate` we need to free `pointer`. */
-#define LOX_FREE_ARRAY(T, pointer, oldcapacity) \
+#define FREE_ARRAY(T, pointer, oldcapacity) \
     reallocate(pointer, sizeof(T) * (oldcapacity), 0)
 
 /**
