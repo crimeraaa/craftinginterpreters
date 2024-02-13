@@ -44,7 +44,7 @@ ifcondition ::= ["("] expression [")"]
 loopvariant ::= ["("] ( variable | expression | [";"] ) 
                 expression? [";"]
                 expression? [")"]
-              
+                
 expression  ::= primary
               | IDENTIFIER assignment
               | ( unary )* expression
@@ -79,6 +79,68 @@ relational  ::= [">"]
 logical     ::= ["and"]
               | ["or"]
 
+```
+
+# Operator Precedence
+
+The following BNF grammar describes the exact order of operations for Lox, this is more true to the tidbits that we're given in the book.
+
+Note that operations farther down are actually higher precedence, because they get evaluated earlier than the operations higher up the grammar. 
+
+So like in C, Lox treats logical `and` as being higher priority that logical `or`. 
+
+Assignment of existing variables is higher priority than declaration of a new variable, giving it a right associativity. Like in the following:
+
+```
+var a = 13;
+var b = a = 4; // Looks like `var b = (a = 4);`
+```
+
+And of course, function calls have a *very* high precedence!
+
+```bnf
+program     ::= declaration* EOF
+declaration ::= fundecl
+              | vardecl
+              | statement
+fundecl     ::= "fun" function
+function    ::= IDENTIFIER "(" parameters? ")" block
+parameters  ::= IDENTIFIER ( "," IDENTIFIER )*
+vardecl     ::= "var" IDENTIFIER ( "=" expression )? ";"
+statement   ::= exprstmt
+              | block
+              | printstmt
+              | ifelsestmt
+              | whilestmt
+              | forstmt
+              | returnstmt
+exprstmt    ::= expression ";"
+block       ::= "{" declaration* "}"
+printstmt   ::= "print" expression ";"
+ifelsestmt  ::= "if" "(" expression ")" statement ( "else" statement )?
+whilestmt   ::= "while" "(" expression ")" statement
+forstmt     ::= "for" "(" forinit forcond foriter ")" statement
+forinit     ::= ( vardecl | exprstmt | ";" )
+forcond     ::= expression? ";"
+foriter     ::= expression? 
+
+expression  ::= assignment
+assignment  ::= IDENTIFIER "=" assignment
+              | logical_or
+logical_or  ::= logical_and ( "or" logical_and )*
+logical_and ::= equality ( "and" equality )*
+equality    ::= comparison ( ( "!=" | "==" ) comparison )*
+comparison  ::= terminal ( ( ">" | ">=" | "<" | "<=" ) terminal )*
+terminal    ::= factor  ( ( "-" | "+" ) factor )* 
+factor      ::= unary ( ( "/" | "*" ) unary )*
+unary       ::= ( "!" | "-" ) unary
+              | invocation
+invocation  ::= primary ( "(" arguments? ")" )*
+arguments   ::= expression ( "," expression )*
+primary     ::= literal | grouping | IDENTIFIER
+literal     ::= NUMBER | STRING | "true" | "false" | "nil"
+grouping    ::= "(" expression ")"
+              
 ```
 
 <!-- I suck at LaTeX lol
