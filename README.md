@@ -25,25 +25,22 @@ Purely uppercase sequences, like `IDENTIFIER`, represent some arbitrary sequence
 
 ```bnf
 program     ::= declaration* EOF
-
-declaration ::= function 
-              | variable 
-              | statement
-function    ::= ["fun"] IDENTIFIER ["("] parameters? [")"] block
-parameters  ::= IDENTIFIER ( [","] IDENTIFIER )*
-variable    ::= ["var"] IDENTIFIER assignment? [";"]
-assignment  ::= ["="] expression
+declaration ::= function | variable | statement
+function    ::= "fun" IDENTIFIER "(" parameters? ")" block
+parameters  ::= IDENTIFIER ( "," IDENTIFIER )*
+variable    ::= "var" IDENTIFIER assignment? ";"
+assignment  ::= "=" expression
 statement   ::= expression ";"
               | block
-              | ["if"] ifcondition statement ( ["else"] statement )?
-              | ["while"] ifcondition statement
-              | ["for"] loopvariant statement
-              | ["return"] expression? [";"]
-block       ::= ["{"] declaration* ["}"]
-ifcondition ::= ["("] expression [")"]
-loopvariant ::= ["("] ( variable | expression | [";"] ) 
-                expression? [";"]
-                expression? [")"]
+              | "if" ifcondition statement ( "else" statement )?
+              | "while" ifcondition statement
+              | "for" loopvariant statement
+              | "return" expression? ";"
+block       ::= "{" declaration* "}"
+ifcondition ::= "(" expression ")"
+loopvariant ::= "(" ( variable | expression | ";" ) 
+                expression? ";"
+                expression? ")"
                 
 expression  ::= primary
               | IDENTIFIER assignment
@@ -51,33 +48,18 @@ expression  ::= primary
               | expression ( binary expression )*
               | grouping
               | invocation
-primary     ::= NUMBER
-              | STRING
-              | IDENTIFIER
-              | ["true"]
-              | ["false"]
-              | ["nil"]
-grouping    ::= ["("] expression [")"]
-invocation  ::= IDENTIFIER ( ["("] arguments? [")"] )+
-arguments   ::= expression ( [","] expression )*
+primary     ::= NUMBER | STRING | IDENTIFIER | "true" | "false" | "nil"
+grouping    ::= "(" expression ")"
+invocation  ::= IDENTIFIER ( "(" arguments? ")" )+
+arguments   ::= expression ( "," expression )*
 
-unary       ::= ["!"]
-              | ["-"]
+unary       ::= "!" | "-"
 binary      ::= arithmetic
               | relational
               | logical
-arithmetic  ::= ["+"] 
-              | ["-"] 
-              | ["*"] 
-              | ["/"]
-relational  ::= [">"] 
-              | [">="] 
-              | ["<"] 
-              | ["<="] 
-              | ["=="] 
-              | ["!="]
-logical     ::= ["and"]
-              | ["or"]
+arithmetic  ::= "+" | "-" | "*" | "/"
+relational  ::= ">" | ">=" | "<" | "<=" | "==" | "!="
+logical     ::= "and" | "or"
 
 ```
 
@@ -100,9 +82,11 @@ And of course, function calls have a *very* high precedence!
 
 ```bnf
 program     ::= declaration* EOF
-declaration ::= fundecl
+declaration ::= classdecl
+              | fundecl
               | vardecl
               | statement
+classdecl   ::= "class" IDENTIFIER "{" function* "}" 
 fundecl     ::= "fun" function
 function    ::= IDENTIFIER "(" parameters? ")" block
 parameters  ::= IDENTIFIER ( "," IDENTIFIER )*
@@ -125,7 +109,7 @@ forcond     ::= expression? ";"
 foriter     ::= expression? 
 
 expression  ::= assignment
-assignment  ::= IDENTIFIER "=" assignment
+assignment  ::= ( call "." )? IDENTIFIER "=" assignment
               | logical_or
 logical_or  ::= logical_and ( "or" logical_and )*
 logical_and ::= equality ( "and" equality )*
@@ -135,12 +119,11 @@ terminal    ::= factor  ( ( "-" | "+" ) factor )*
 factor      ::= unary ( ( "/" | "*" ) unary )*
 unary       ::= ( "!" | "-" ) unary
               | invocation
-invocation  ::= primary ( "(" arguments? ")" )*
+invocation  ::= primary ( "(" arguments? ")" | "." IDENTIFIER )*
 arguments   ::= expression ( "," expression )*
 primary     ::= literal | grouping | IDENTIFIER
 literal     ::= NUMBER | STRING | "true" | "false" | "nil"
 grouping    ::= "(" expression ")"
-              
 ```
 
 <!-- I suck at LaTeX lol

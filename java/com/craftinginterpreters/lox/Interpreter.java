@@ -77,6 +77,32 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 return "<native fn>";
             }
         });
+        // Based off of Lua's `type` builtin function.
+        this.globals.defineVariable("type", new LoxCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+            
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                for (Object argument : arguments) {
+                    if (argument == null) {
+                        return "nil";
+                    }
+                    return argument.getClass()
+                        .toString()
+                        .replaceFirst("class java.lang.", "")
+                        .toLowerCase();
+                }
+                return null;
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
     }
     
     /* Take a syntax tree for an expression then try to evaluate it. */
@@ -112,6 +138,22 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
         
         return evaluateExpression(expr.right);
+    }
+    
+    @Override
+    public Object visitSetExpr(Expr.Set expr) {
+        Object object = evaluateExpression(expr.object);
+        if (!(object instanceof LoxInstance)) {
+            throw new RuntimeError(expr.name, "Only instances have fields.");
+        }
+        Object value = evaluateExpression(expr.value);
+        ((LoxInstance)object).set(expr.name, value);
+        return value;
+    }
+    
+    @Override
+    public Object visitThisExpr(Expr.This expr) {
+        return lookUpVariable(expr.keyword, expr);
     }
     
     @Override
@@ -252,6 +294,24 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
     
+    @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        this.environment.defineVariable(stmt.name.lexeme, null);
+        
+        // Turn syntactic representation of the class (the AST node) into its
+        // runtime representation.
+        Map<String, LoxFunction> methods = new HashMap<>();
+        for (Stmt.Function method : stmt.methods) {
+            boolean isInitializer = method.name.lexeme.equals("init");
+            LoxFunction function = new LoxFunction(method, environment, isInitializer);
+            methods.put(method.name.lexeme, function);
+        }
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+        this.environment.assignGlobalVariable(stmt.name, klass);
+        return null;
+    }
+    
     /* Evaluate then discard the value. */
     @Override
     public Void visitExpressionStmt(Stmt.Expression stmt) {
@@ -265,7 +325,9 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         // Also capture the current environment, especially for closures.
         // However this is the environment for when the function is declared,
         // not the environment when it's called.
-        LoxFunction function = new LoxFunction(stmt, this.environment);
+        // Also, in case the user defined a non-class method function literally 
+        // called 'init', we shouldn't treat that as an initializer.
+        LoxFunction function = new LoxFunction(stmt, this.environment, false);
         // Create the runtime representation of our function.
         this.environment.defineVariable(stmt.name.lexeme, function);
         return null;
@@ -401,6 +463,15 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 "Expected " + function.arity() + " arguments but got " + arguments.size() + ".");
         }
         return function.call(this, arguments);
+    }
+    
+    @Override
+    public Object visitGetExpr(Expr.Get expr) {
+        Object object = evaluateExpression(expr.object);
+        if (object instanceof LoxInstance) {
+            return ((LoxInstance) object).accessProperty(expr.name);
+        }
+        throw new RuntimeError(expr.name, "Only instances have properties.");
     }
 
     private void checkNumberOperands(Token operator, Object left, Object right) {

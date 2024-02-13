@@ -16,10 +16,26 @@ interface LoxCallable {
 class LoxFunction implements LoxCallable {
     private final Stmt.Function declaration;
     private final Environment closure; // Hold on to any external local variables!
+    private final boolean isInitializer;
                                        
-    LoxFunction(Stmt.Function declaration, Environment closure) {
+    LoxFunction(Stmt.Function declaration, Environment closure, boolean isInitializer) {
         this.declaration = declaration;
         this.closure = closure;
+        this.isInitializer = isInitializer;
+    }
+    
+    /**
+     * Create a new environment nestled in the method's original closure so that
+     * when the method is called, it becomes the parent of the method body's
+     * environment.
+     * 
+     * So this creates a little persistence environment where "this" is bound to
+     * the object instance.
+     */
+    LoxFunction bind(LoxInstance instance) {
+        Environment environment = new Environment(this.closure);
+        environment.defineVariable("this", instance);
+        return new LoxFunction(declaration, environment, this.isInitializer);
     }
     
     /* Assumes that we verified the user supplied the correct number of arguments. */
@@ -40,7 +56,16 @@ class LoxFunction implements LoxCallable {
             // After this, the local environment will be discarded.
             interpreter.executeBlock(this.declaration.body, environment);
         } catch (Return returnValue) {
+            // Allow early void returns in class initializer functions.
+            // This will instead return the 'this' object.
+            if (this.isInitializer) {
+                return closure.retrieveLocalVariable(0, "this");
+            }
             return returnValue.value;
+        }
+        // For initializer functions, try to forcibly return 'this'.
+        if (this.isInitializer) {
+            return this.closure.retrieveLocalVariable(0, "this");
         }
         // If no 'return' was found, we default to returning a nil value.
         return null;

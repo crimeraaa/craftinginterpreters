@@ -88,8 +88,11 @@ class Parser {
     
     private Stmt parseDeclaration() {
         try {
+            if (consumeTokenIfMatchesAny(KEYWORD_CLASS)) {
+                return parseClassDecl();
+            }
             if (consumeTokenIfMatchesAny(KEYWORD_FUN)) {
-                return parseFunction("function");
+                return parseFunDecl("function");
             }
             if (consumeTokenIfMatchesAny(KEYWORD_VAR)) {
                 return parseVarDecl();
@@ -229,11 +232,26 @@ class Parser {
         return new Stmt.Expression(expr);
     }
     
+    /** 
+     * If we've already consumed a 'class' keyword, we can try to consume its 
+     * members variables/methods.
+     */
+    private Stmt.Class parseClassDecl() {
+        Token name = consumeTokenOrThrow(IDENTIFIER, "Expected a class name.");
+        consumeTokenOrThrow(LEFT_BRACE, "Expected '{' before class body.");
+        List<Stmt.Function> methods = new ArrayList<>();
+        while (!matchCurrentToken(RIGHT_BRACE) && !isAtEnd()) {
+            methods.add(parseFunDecl("method"));
+        }
+        consumeTokenOrThrow(RIGHT_BRACE, "Expected '}' after class body.");
+        return new Stmt.Class(name, methods);
+    }
+    
     /**
      * kind may be one of "function" or "method" to differentiate freestanding 
      * functions and class methods.
      */
-    private Stmt.Function parseFunction(String kind) {
+    private Stmt.Function parseFunDecl(String kind) {
         Token name = consumeTokenOrThrow(IDENTIFIER, "Expected " + kind + "name.");
         consumeTokenOrThrow(LEFT_PAREN, "Expected '( after " + kind + " name.");
         List<Token> parameters = new ArrayList<>();
@@ -269,7 +287,7 @@ class Parser {
     /** 
      * lvalues like the 2nd expression in `var a = 13; a = 42;` are special cases. 
      * So Expr.Assign has a special case where it also keeps the left-hand side
-     * in order to evaluate assignment of alread existing variables.
+     * in order to evaluate assignment of already existing variables.
      */
     private Expr parseAssignment() {
         // Parses and evaluate left-side in full, may be an expression!
@@ -282,6 +300,9 @@ class Parser {
             if (expr instanceof Expr.Variable) {
                 Token name = ((Expr.Variable)expr).name;
                 return new Expr.Assign(name, value);
+            } else if (expr instanceof Expr.Get) {
+                Expr.Get get = (Expr.Get)expr;
+                return new Expr.Set(get.object, get.name, value);
             }
             
             logParseError(equals, "Invalid assignment target.");
@@ -379,10 +400,14 @@ class Parser {
     private Expr parseCall() {
         Expr expr = parsePrimary();
 
+        // while true corresponds to the '*' in the grammar for call/invocation.
         while (true) {
             // Parse a calling expr using the previous parsed expr as callee.
             if (consumeTokenIfMatchesAny(LEFT_PAREN)) {
                 expr = finishCall(expr);
+            } else if (consumeTokenIfMatchesAny(OPERATOR_DOT)) {
+                Token name = consumeTokenOrThrow(IDENTIFIER, "Expected property name after '.'.");
+                expr = new Expr.Get(expr, name);
             } else {
                 break;
             }
@@ -430,6 +455,9 @@ class Parser {
         // Our scanner/lexer already retrieved the in-memory object of this.
         if (consumeTokenIfMatchesAny(NUMBER_LITERAL, STRING_LITERAL)) {
             return new Expr.Literal(peekPreviousToken().literal);
+        }
+        if (consumeTokenIfMatchesAny(KEYWORD_THIS)) {
+            return new Expr.This(peekPreviousToken());
         }
         // We just parsed a variable name or identifier.
         if (consumeTokenIfMatchesAny(IDENTIFIER)) {

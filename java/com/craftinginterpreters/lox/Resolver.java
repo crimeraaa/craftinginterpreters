@@ -23,7 +23,16 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private enum FunctionType {
         NONE,
         FUNCTION,
+        INITIALIZER,
+        METHOD,
     }
+    
+    private enum ClassType {
+        NONE,
+        CLASS
+    }
+    
+    private ClassType currentClass = ClassType.NONE;
 
     private final Interpreter interpreter;
     /** 
@@ -54,6 +63,32 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         endBlockScope();
         return null;
     } 
+    
+    @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        ClassType enclosingClass = this.currentClass;
+        currentClass = ClassType.CLASS;
+
+        declareVar(stmt.name);
+        defineVar(stmt.name);
+        
+        // Create a closure for the implicit 'this' variable.
+        // This allows us to resolve it to a local variable within methods.
+        beginBlockScope();
+        this.scopes.peek().put("this", true);
+        for (Stmt.Function method : stmt.methods) {
+            FunctionType declaration = FunctionType.METHOD;
+            // May be a user-defined non-method function called 'init', so use
+            // visitReturnStmt in Resolver to double check.
+            if (method.name.lexeme.equals("init")) {
+                declaration = FunctionType.INITIALIZER;
+            }
+            resolveFunction(method, declaration);
+        }
+        endBlockScope();
+        this.currentClass = enclosingClass;
+        return null;
+    }
     
     /* An expression statement contains a single expression to traverse. */
     @Override
@@ -92,6 +127,9 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             Lox.error(stmt.keyword, "Can't return from top-level code!");
         }
         if (stmt.value != null) {
+            if (this.currentFunction == FunctionType.INITIALIZER) {
+                Lox.error(stmt.keyword, "Can't return a value from an initializer.");
+            }
             resolveExpr(stmt.value);
         }
         return null;
@@ -121,6 +159,16 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
     
+    /** 
+     * Properties of classes are looked up dynamically. 
+     * This means they aren't resolved by the static analysis.
+     */
+    @Override
+    public Void visitGetExpr(Expr.Get expr) {
+        resolveExpr(expr.object);
+        return null;
+    }
+    
     @Override
     public Void visitGroupingExpr(Expr.Grouping expr) {
         resolveExpr(expr.expression);
@@ -141,6 +189,22 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitLogicalExpr(Expr.Logical expr) {
         resolveExpr(expr.left);
         resolveExpr(expr.right);
+        return null;
+    }
+    
+    @Override
+    public Void visitSetExpr(Expr.Set expr) {
+        resolveExpr(expr.value);
+        resolveExpr(expr.object);
+        return null;
+    }
+    
+    @Override
+    public Void visitThisExpr(Expr.This expr) {
+        if (this.currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, "Can't use 'this' outside of a class.");
+        }
+        resolveLocal(expr, expr.keyword);
         return null;
     }
     
@@ -199,9 +263,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         if (this.scopes.isEmpty()) {
             return;
         }
+        // I guess this is like .pop without actually popping *off* the stack?
         Map<String, Boolean> scope = this.scopes.peek();
+
         // Redeclaration of local variables in the same scope is likely an error.
         // We do allow this in the global scope though.
+        // TODO: Do allow `var a = "Global"; { var a = a; print(a); }` though?
         if (scope.containsKey(name.lexeme)) {
             Lox.error(name, "Already a variable with this name in the scope.");
         }
