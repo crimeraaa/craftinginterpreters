@@ -1,0 +1,22 @@
+class Bacon {
+    init(crunch) {
+        print("Bacon init");
+        this.crunch = crunch;
+    }
+    
+    describe() {
+        print(this);
+        print(this.crunch + " bacon");
+    }
+}
+
+fun init() {
+    print("Global init");
+}
+
+init();
+var bacon = Bacon("Crunchy");
+var jerky = Bacon("Dried");
+bacon.describe();
+jerky.describe();
+init();
