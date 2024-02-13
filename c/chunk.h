@@ -6,8 +6,12 @@
 
 typedef enum {
     OP_CONSTANT, // Load constant: 1 operand (index into chunk's constant pool)
-    OP_NEGATE, // Unary negation: 1 operand.
-    OP_RETURN, // 0 operands.
+    OP_UNM, // Unary operator. Unary negation, a.k.a "Unary Minus": 1 operand.
+    OP_ADD, // Binary operator.
+    OP_SUB, // Binary operator.
+    OP_MUL, // Binary operator.
+    OP_DIV, // Binary operator.
+    OP_RET, // Return statement. 0 operands.
 } LoxOpCode; // Named integer constants for each of our 1-byte instructions.
 
 /* Our dynamic array to hold chunks of code. */

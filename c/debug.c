@@ -43,10 +43,18 @@ int chunk_disassemble_instruction(LoxChunk *chunk, int offset)
     switch(opcode) {
     case OP_CONSTANT:
         return constant_instruction("OP_CONSTANT", chunk, offset);
-    case OP_NEGATE:
-        return simple_instruction("OP_NEGATE", offset);
-    case OP_RETURN:
-        return simple_instruction("OP_RETURN", offset);
+    case OP_ADD:
+        return simple_instruction("OP_ADD", offset);
+    case OP_SUB:
+        return simple_instruction("OP_SUB", offset);
+    case OP_MUL:
+        return simple_instruction("OP_MUL", offset);
+    case OP_DIV:
+        return simple_instruction("OP_DIV", offset);
+    case OP_UNM:
+        return simple_instruction("OP_UNM", offset);
+    case OP_RET:
+        return simple_instruction("OP_RET", offset);
     default:
         printf("Unknown opcode %d.\n", opcode);
         return offset + 1; // Indicate the likely start of the next instruction.

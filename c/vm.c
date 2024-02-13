@@ -36,8 +36,18 @@ LoxValue vm_pop(void)
 }
 
 /* No matter the precedence, the original value of `*vm.ip` is returned. */
-#define VM_READ_BYTE()     (*vm.ip++)
-#define VM_READ_CONSTANT() (vm.chunk->constants.values[VM_READ_BYTE()])
+#define VM_READ_BYTE()      (*vm.ip++)
+#define VM_READ_CONSTANT()  (vm.chunk->constants.values[VM_READ_BYTE()])
+/** 
+ * Ugly, but it does ensure *some* type safety! 
+ * Also remember that `rhs` is the latest element, hence we pop it off first.
+ */
+#define VM_BINARY_OP(op)    \
+    do { \
+        double rhs = vm_pop(); \
+        double lhs = vm_pop(); \
+        vm_push(lhs op rhs); \
+    } while(false)
 
 static LoxInterpretResult vm_run(void)
 {
@@ -63,18 +73,23 @@ static LoxInterpretResult vm_run(void)
             vm_push(constant); // "Produce" a value by pushing it onto the stack.
             break;
         }
-        case OP_NEGATE: {
-            vm_push(-vm_pop()); // Seems silly but think about it for a bit!
-            break;
+        case OP_ADD:    { VM_BINARY_OP(+); break; }
+        case OP_SUB:    { VM_BINARY_OP(-); break; }
+        case OP_MUL:    { VM_BINARY_OP(*); break; }
+        case OP_DIV:    { VM_BINARY_OP(/); break; }
+        // Seems silly but think about it for a bit!
+        case OP_UNM: { 
+            vm_push(-vm_pop()); 
+            break; 
         }
-        case OP_RETURN: {
-            value_print(vm_pop());
+        case OP_RET: { value_print(vm_pop());
             printf("\n");
             return INTERPRET_OK;
         }}
     }
 }
 
+#undef VM_BINARY_OP
 #undef VM_READ_BYTE
 #undef VM_READ_CONSTANT
 
