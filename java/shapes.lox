@@ -1,0 +1,56 @@
+class Quad {
+    init(alpha, bravo, charlie, delta) {
+        this.set(alpha, bravo, charlie, delta);
+    }
+    set(alpha, bravo, charlie, delta) {
+        this.alpha = alpha;
+        this.bravo = bravo;
+        this.charlie = charlie;
+        this.delta = delta;
+    }
+
+    show() {
+        print(this.alpha);
+        print(this.bravo);
+        print(this.charlie);
+        print(this.delta);
+    }
+}
+
+class Rect < Quad {
+    init(length, height) {
+        super.init(length, length, height, height); // Quad's init
+        this.length = length;
+        this.height = height;
+    }
+    area() {
+        return this.length * this.height;
+    }
+}
+
+class Square < Rect {
+    init(length) {
+        // super.init(length, length); // Rect's version
+        super.set(length, length, length, length); // Quad's version
+        this.length = length;
+    }
+    area() {
+        return this.length * this.length;
+    }
+}
+
+print("-- QUAD --");
+var quad = Quad(4, 4, 5, 6);
+quad.show();
+// print(quad.area());
+
+print("-- RECT --");
+var rect = Rect(11, 14);
+rect.show();
+print(rect.area());
+
+print("-- SQUARE --");
+var square = Square(5);
+square.show();
+print(square.area());
+

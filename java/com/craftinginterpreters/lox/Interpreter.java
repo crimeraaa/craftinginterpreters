@@ -152,6 +152,25 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
     
     @Override
+    public Object visitSuperExpr(Expr.Super expr) {
+        int distance = this.locals.get(expr);
+        LoxClass superclass = (LoxClass)this.environment.retrieveLocalVariable(
+            distance, "super");
+        // Even though we don't have a convenient node to hang on to for 'this',
+        // we control the layout of the environment chains so 'this' is always
+        // right inside of the environment where we store 'super'.
+        // We assume that 'this' is in an inner environment, hence - 1.
+        LoxInstance object = (LoxInstance)this.environment.retrieveLocalVariable(
+            distance - 1, "this");
+        LoxFunction method = superclass.findMethod(expr.method.lexeme);
+        if (method == null) {
+            throw new RuntimeError(expr.method, 
+                "Undefined property '" + expr.method.lexeme + "'.");
+        }
+        return method.bind(object);
+    }
+    
+    @Override
     public Object visitThisExpr(Expr.This expr) {
         return lookUpVariable(expr.keyword, expr);
     }
@@ -296,7 +315,24 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
+        Object superclass = null;
+        if (stmt.superclass != null) {
+            superclass = evaluateExpression(stmt.superclass);
+            // Disallow inheritance of non-class types because it's unreasonable
+            if (!(superclass instanceof LoxClass)) {
+                throw new RuntimeError(stmt.superclass.name, 
+                    "Superclass must be a class.");
+            }
+        }
         this.environment.defineVariable(stmt.name.lexeme, null);
+        
+        // When we evaluate a subclass definition, we create a new environment.
+        // In this environment we store a reference to the superclass, which is 
+        // the actual LoxClass object for the superclass at runtime.
+        if (stmt.superclass != null) {
+            this.environment = new Environment(this.environment);
+            this.environment.defineVariable("super", superclass);
+        }
         
         // Turn syntactic representation of the class (the AST node) into its
         // runtime representation.
@@ -307,7 +343,12 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             methods.put(method.name.lexeme, function);
         }
 
-        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass)superclass, methods);
+
+        // Pop the inner superclass environment if we made one.
+        if (superclass != null) {
+            this.environment = this.environment.enclosing;
+        }
         this.environment.assignGlobalVariable(stmt.name, klass);
         return null;
     }

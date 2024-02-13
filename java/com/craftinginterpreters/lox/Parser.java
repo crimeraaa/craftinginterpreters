@@ -238,13 +238,18 @@ class Parser {
      */
     private Stmt.Class parseClassDecl() {
         Token name = consumeTokenOrThrow(IDENTIFIER, "Expected a class name.");
+        Expr.Variable superclass = null;
+        if (consumeTokenIfMatchesAny(OPERATOR_LT)) {
+            consumeTokenOrThrow(IDENTIFIER, "Expected superclass name.");
+            superclass = new Expr.Variable(peekPreviousToken());
+        }
         consumeTokenOrThrow(LEFT_BRACE, "Expected '{' before class body.");
         List<Stmt.Function> methods = new ArrayList<>();
         while (!matchCurrentToken(RIGHT_BRACE) && !isAtEnd()) {
             methods.add(parseFunDecl("method"));
         }
         consumeTokenOrThrow(RIGHT_BRACE, "Expected '}' after class body.");
-        return new Stmt.Class(name, methods);
+        return new Stmt.Class(name, superclass, methods);
     }
     
     /**
@@ -455,6 +460,12 @@ class Parser {
         // Our scanner/lexer already retrieved the in-memory object of this.
         if (consumeTokenIfMatchesAny(NUMBER_LITERAL, STRING_LITERAL)) {
             return new Expr.Literal(peekPreviousToken().literal);
+        }
+        if (consumeTokenIfMatchesAny(KEYWORD_SUPER)) {
+            Token keyword = peekPreviousToken();
+            consumeTokenOrThrow(OPERATOR_DOT, "Expected '.' after 'super'.");
+            Token method = consumeTokenOrThrow(IDENTIFIER, "Expected superclass method name.");
+            return new Expr.Super(keyword, method);
         }
         if (consumeTokenIfMatchesAny(KEYWORD_THIS)) {
             return new Expr.This(peekPreviousToken());

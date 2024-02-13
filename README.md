@@ -23,48 +23,6 @@ Sequences enclosed by outer square brackets and inner double quotes, like `["var
 
 Purely uppercase sequences, like `IDENTIFIER`, represent some arbitrary sequence, like a variable name or a number/string literal. `EOF` is unique in that it's not something you can write, but rather is (or **should** be!) implicitly encoded into your text files.
 
-```bnf
-program     ::= declaration* EOF
-declaration ::= function | variable | statement
-function    ::= "fun" IDENTIFIER "(" parameters? ")" block
-parameters  ::= IDENTIFIER ( "," IDENTIFIER )*
-variable    ::= "var" IDENTIFIER assignment? ";"
-assignment  ::= "=" expression
-statement   ::= expression ";"
-              | block
-              | "if" ifcondition statement ( "else" statement )?
-              | "while" ifcondition statement
-              | "for" loopvariant statement
-              | "return" expression? ";"
-block       ::= "{" declaration* "}"
-ifcondition ::= "(" expression ")"
-loopvariant ::= "(" ( variable | expression | ";" ) 
-                expression? ";"
-                expression? ")"
-                
-expression  ::= primary
-              | IDENTIFIER assignment
-              | ( unary )* expression
-              | expression ( binary expression )*
-              | grouping
-              | invocation
-primary     ::= NUMBER | STRING | IDENTIFIER | "true" | "false" | "nil"
-grouping    ::= "(" expression ")"
-invocation  ::= IDENTIFIER ( "(" arguments? ")" )+
-arguments   ::= expression ( "," expression )*
-
-unary       ::= "!" | "-"
-binary      ::= arithmetic
-              | relational
-              | logical
-arithmetic  ::= "+" | "-" | "*" | "/"
-relational  ::= ">" | ">=" | "<" | "<=" | "==" | "!="
-logical     ::= "and" | "or"
-
-```
-
-# Operator Precedence
-
 The following BNF grammar describes the exact order of operations for Lox, this is more true to the tidbits that we're given in the book.
 
 Note that operations farther down are actually higher precedence, because they get evaluated earlier than the operations higher up the grammar. 
@@ -86,7 +44,8 @@ declaration ::= classdecl
               | fundecl
               | vardecl
               | statement
-classdecl   ::= "class" IDENTIFIER "{" function* "}" 
+classdecl   ::= "class" IDENTIFIER inheritance? "{" function* "}" 
+inheritance ::= "<" IDENTIFIER
 fundecl     ::= "fun" function
 function    ::= IDENTIFIER "(" parameters? ")" block
 parameters  ::= IDENTIFIER ( "," IDENTIFIER )*
@@ -121,10 +80,13 @@ unary       ::= ( "!" | "-" ) unary
               | invocation
 invocation  ::= primary ( "(" arguments? ")" | "." IDENTIFIER )*
 arguments   ::= expression ( "," expression )*
-primary     ::= literal | grouping | IDENTIFIER
+primary     ::= literal | grouping | IDENTIFIER | super
 literal     ::= NUMBER | STRING | "true" | "false" | "nil"
 grouping    ::= "(" expression ")"
+super       ::= "super" "." IDENTIFIER
 ```
+
+The `super` keyword is purely for access to a base class's methods. Invoking said methods is a separate expression!
 
 <!-- I suck at LaTeX lol
 $$

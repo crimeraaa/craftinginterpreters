@@ -29,7 +29,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     
     private enum ClassType {
         NONE,
-        CLASS
+        CLASS,
+        SUBCLASS,
     }
     
     private ClassType currentClass = ClassType.NONE;
@@ -71,6 +72,25 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
         declareVar(stmt.name);
         defineVar(stmt.name);
+
+        if (stmt.superclass != null) {
+            // Detect self-inheritance as a semantic error.
+            // e.g. class Box < Box {...} is invalid!
+            if (stmt.name.lexeme.equals(stmt.superclass.name.lexeme)) {
+                Lox.error(stmt.superclass.name, 
+                    "A class can't inherit from itself.");
+            }
+            currentClass = ClassType.SUBCLASS;
+            // This also allows for classes even inside blocks.
+            resolveExpr(stmt.superclass);
+        }
+        
+        // If class declaration has a superclass, we create a new scope surrounding
+        // all of its methods. That scope gets a variable named "super".
+        if (stmt.superclass != null) {
+            beginBlockScope();
+            this.scopes.peek().put("super", true);
+        }
         
         // Create a closure for the implicit 'this' variable.
         // This allows us to resolve it to a local variable within methods.
@@ -86,6 +106,10 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             resolveFunction(method, declaration);
         }
         endBlockScope();
+        
+        if (stmt.superclass != null) {
+            endBlockScope();
+        }
         this.currentClass = enclosingClass;
         return null;
     }
@@ -196,6 +220,25 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitSetExpr(Expr.Set expr) {
         resolveExpr(expr.value);
         resolveExpr(expr.object);
+        return null;
+    }
+    
+    /** 
+     * Resolve the 'super' token exactly as if it were a local variable. 
+     * Remember that the resolution stores the number of hops along the
+     * environment chain that the interpreter needs to walk to find the 
+     * environment where the superclass is stored.
+     */
+    @Override
+    public Void visitSuperExpr(Expr.Super expr) {
+        if (this.currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, 
+                "Can't use 'super' outside of a class.");
+        } else if (this.currentClass != ClassType.SUBCLASS) {
+            Lox.error(expr.keyword, 
+                "Can't use 'super' in a class with no superclass.");
+        }
+        resolveLocal(expr, expr.keyword);
         return null;
     }
     

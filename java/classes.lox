@@ -20,3 +20,22 @@ var jerky = Bacon("Dried");
 bacon.describe();
 jerky.describe();
 init();
+
+class Doughnut {
+    cook() {
+        print(this);
+        print("Frying until golden brown...");
+    }
+}
+
+class BostonCream < Doughnut {
+    cook() {
+        super.cook();
+        print("Pipe full of custard and coat with chocolate.");
+    }
+}
+
+var donut = Doughnut();
+var custard = BostonCream();
+donut.cook();
+custard.cook();
