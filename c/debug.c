@@ -21,9 +21,9 @@ static int lox_simple_instruction(const char *name, int offset)
 
 static int lox_constant_instruction(const char *name, LoxChunk *chunk, int offset)
 {
-    uint8_t constant = chunk->code[offset + 1]; // Index into the constants pool
-    printf("%-16s %4d '", name, constant);
-    lox_print_value(chunk->constants.values[constant]);
+    uint8_t index = chunk->code[offset + 1]; // Index into the constants pool
+    printf("%-16s %4d '", name, index);
+    lox_print_value(chunk->constants.values[index]);
     printf("'\n");
     return offset + 2; // `OP_CONSTANT`takes 2 bytes as it has 1 operand.
 }
@@ -37,15 +37,15 @@ int lox_disassemble_instruction(LoxChunk *chunk, int offset)
     } else {
         printf("%4d ", chunk->lines[offset]);
     }
-    uint8_t instruction = chunk->code[offset]; // a.k.a our opcode
-    switch(instruction) {
+    uint8_t opcode = chunk->code[offset]; // a.k.a our opcode
+    switch(opcode) {
     case OP_CONSTANT:
         return lox_constant_instruction("OP_CONSTANT", chunk, offset);
     case OP_RETURN:
         return lox_simple_instruction("OP_RETURN", offset);
     default:
-        printf("Unknown opcode %d.\n", instruction);
-        return offset + 1; // Indicate the start of the next instruction.
+        printf("Unknown opcode %d.\n", opcode);
+        return offset + 1; // Indicate the likely start of the next instruction.
     }
 }
 

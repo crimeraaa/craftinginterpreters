@@ -24,8 +24,8 @@ void lox_init_chunk(LoxChunk *chunk);
 /* Free this chunk's `code` and `constants` sections. */
 void lox_free_chunk(LoxChunk *chunk);
 
-/* Append `byte` to this chunk's `code` section. Think a list of opcodes. */
-void lox_write_chunk(LoxChunk *chunk, uint8_t byte, int line);
+/* Append `opcode` to this chunk's `code` section. Think a list of opcodes. */
+void lox_write_chunk(LoxChunk *chunk, uint8_t opcode, int line);
 
 /** 
  * @brief   Append `value` to this chunk's constant values pool. In reality, 
