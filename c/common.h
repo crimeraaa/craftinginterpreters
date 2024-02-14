@@ -3,9 +3,11 @@
 
 #include <stdbool.h>    /* bool */
 #include <stddef.h>     /* NULL, size_t */
-#include <stdlib.h>     /* realloc, free */
+#include <stdlib.h>     /* realloc, free, exit */
 #include <stdint.h>     /* fixed width integer types! */
-#include <stdio.h>      /* printf */
+#include <stdio.h>      /* FILE*, f* family, *printf family */
+#include <string.h>     /*  */
+#include <sysexits.h>   /* UNIX conventional exit codes. */
 
 /* III:15.1.2 */
 #define DEBUG_TRACE_EXECUTION
@@ -21,7 +23,7 @@
 /* Writes string literal with debug/logging information to `stderr`. */
 #define lox_dputs(func, info)   fputs(lox_logfmt(func, info), stderr);
 
-/* Writes formatted string with debug and logging information to `stderr`. */
+/* Writes formatted string with debug/logging information to `stderr`. */
 #define lox_dprintf(func, ...)  fprintf(stderr, lox_logfmt(func, __VA_ARGS__));
 
 #endif /* CLOX_COMMON_H */

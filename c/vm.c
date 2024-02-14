@@ -1,4 +1,5 @@
 #include "vm.h"
+#include "compiler.h"
 #include "debug.h"
 
 LoxVM vm; // For simplicity we'll use global state. Not good practice!
@@ -40,6 +41,9 @@ LoxValue vm_pop(void)
 #define VM_READ_CONSTANT()  (vm.chunk->constants.values[VM_READ_BYTE()])
 /** 
  * Ugly, but it does ensure *some* type safety! 
+ * Note we use a do-while(false) loop to ensure correct scoping while only
+ * running the contents once. It also allows/requires users to append a ';'.
+ * 
  * Also remember that `rhs` is the latest element, hence we pop it off first.
  */
 #define VM_BINARY_OP(op)    \
@@ -89,13 +93,15 @@ static LoxInterpretResult vm_run(void)
     }
 }
 
+LoxInterpretResult vm_interpret(const char *source)
+{
+    // vm.chunk = chunk;
+    // vm.ip = vm.chunk->code;
+    // return vm_run();
+    compiler_compile(source);
+    return INTERPRET_OK;
+}
+
 #undef VM_BINARY_OP
 #undef VM_READ_BYTE
 #undef VM_READ_CONSTANT
-
-LoxInterpretResult vm_interpret(LoxChunk *chunk)
-{
-    vm.chunk = chunk;
-    vm.ip = vm.chunk->code;
-    return vm_run();
-}

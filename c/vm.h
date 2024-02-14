@@ -24,7 +24,7 @@ typedef enum {
 
 void vm_init(void);
 void vm_free(void);
-LoxInterpretResult vm_interpret(LoxChunk *chunk);
+LoxInterpretResult vm_interpret(const char *source);
 void vm_push(LoxValue value);
 LoxValue vm_pop(void);
 

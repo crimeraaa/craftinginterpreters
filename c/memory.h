@@ -27,7 +27,7 @@
  * 
  *          | oldsize | newsize | actions
  *          |---------|---------|-----------------------------------------------
- *          |   0     |  n > 0  | Allocate new block.
+ *          |    0    |  n > 0  | Allocate new block.
  *          |  n > 0  |    0    | Free allocation.
  *          |  n > 0  | n < old | Shrink existing allocation.
  *          |  n > 0  | n > old | Grow existing allocation.
