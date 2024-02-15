@@ -5,8 +5,8 @@ typedef enum {
     // Single-character tokens.
     TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN,
     TOKEN_LEFT_BRACE, TOKEN_RIGHT_BRACE,
-    TOKEN_COMMA, TOKEN_DOT, 
-    TOKEN_SEMICOLON, 
+    TOKEN_COMMA, TOKEN_DOT,
+    TOKEN_SEMICOLON,
     TOKEN_MINUS, TOKEN_PLUS,
     TOKEN_SLASH, TOKEN_STAR,
 
@@ -27,6 +27,8 @@ typedef enum {
 
     TOKEN_ERROR, // Indicate to compiler to handle error recovery.
     TOKEN_EOF,
+
+    TOKEN_COUNT,
 } LoxTokenType;
 
 typedef struct {
@@ -37,7 +39,7 @@ typedef struct {
 } LoxToken;
 
 /* Start the scanner pointing at the first lexeme's first character. */
-void scanner_init(const char *source);
-LoxToken scanner_scan_token(void);
+void init_scanner(const char *source);
+LoxToken scan_token(void);
 
 #endif /* CLOX_SCANNER_H */

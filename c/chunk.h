@@ -4,6 +4,7 @@
 #include "common.h"
 #include "value.h"
 
+/* Named integer constants for each of our 1-byte instructions. */
 typedef enum {
     OP_CONSTANT, // Load constant: 1 operand (index into chunk's constant pool)
     OP_UNM, // Unary operator. Unary negation, a.k.a "Unary Minus": 1 operand.
@@ -12,7 +13,7 @@ typedef enum {
     OP_MUL, // Binary operator.
     OP_DIV, // Binary operator.
     OP_RET, // Return statement. 0 operands.
-} LoxOpCode; // Named integer constants for each of our 1-byte instructions.
+} LoxOpCode;
 
 /* Our dynamic array to hold chunks of code. */
 typedef struct {
@@ -21,24 +22,23 @@ typedef struct {
     int *lines; // Used only for runtime errors. Parallels the bytecode array.
     int count; // Current number of opcodes/instructions we have.
     int capacity; // Total number of opcodes/instructions we can hold for now.
-} LoxChunk; 
+} LoxChunk;
 
 /* Start off empty. */
-void chunk_init(LoxChunk *chunk);
+void init_chunk(LoxChunk *chunk);
 
 /* Free this chunk's `code` and `constants` sections. */
-void chunk_free(LoxChunk *chunk);
+void free_chunk(LoxChunk *chunk);
 
 /* Append `byte` to this chunk's `code` section. Think a list of opcodes. */
-void chunk_write(LoxChunk *chunk, uint8_t byte, int line);
+void write_chunk(LoxChunk *chunk, uint8_t byte, int line);
 
-/** 
- * @brief   Append `value` to this chunk's constant values pool. In reality, 
+/**
+ * @brief   Append `value` to this chunk's constant values pool. In reality,
  *          nothing is stopping you from directly access this chunk's fields!
- * 
+ *
  * @return  Index of where `value` is located in `chunk->constants.values[]`.
  */
-int chunk_add_constant(LoxChunk *chunk, LoxValue value);
-
+int add_constant(LoxChunk *chunk, LoxValue value);
 
 #endif /* CLOX_CHUNK_H */

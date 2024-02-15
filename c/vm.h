@@ -9,9 +9,9 @@
 
 /* Say hello to the CLox Virtual Machine! It executes Lox bytecode. */
 typedef struct {
-    LoxChunk *chunk; // Chunk we need to execute.
+    LoxChunk *chunk; // Chunk of bytecode we need to execute.
     uint8_t *ip; // Instruction pointer, always points to the *next* instruction.
-    LoxValue stack[STACK_MAX];
+    LoxValue stack[STACK_MAX]; // Holds all our globals and locals.
     LoxValue *stacktop; // Points to 1 past the stack's latest (top) element.
 } LoxVM;
 
@@ -22,10 +22,16 @@ typedef enum {
     INTERPRET_RUNTIME_ERROR,
 } LoxInterpretResult;
 
-void vm_init(void);
-void vm_free(void);
-LoxInterpretResult vm_interpret(const char *source);
-void vm_push(LoxValue value);
-LoxValue vm_pop(void);
+void init_vm(void);
+void free_vm(void);
+
+/* Run the internal CLox Virtual machine given a line of code or a script. */
+LoxInterpretResult interpret_vm(const char *source);
+
+/* Push some value to the virtual machine's stack. */
+void push_vm(LoxValue value);
+
+/* Pop some value off of the virtual machine's stack. */
+LoxValue pop_vm(void);
 
 #endif /* CLOX_VM_H */

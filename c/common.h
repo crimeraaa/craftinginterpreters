@@ -9,6 +9,8 @@
 #include <string.h>     /*  */
 #include <sysexits.h>   /* UNIX conventional exit codes. */
 
+/* III:17.7 */
+#define DEBUG_PRINT_CODE
 /* III:15.1.2 */
 #define DEBUG_TRACE_EXECUTION
 

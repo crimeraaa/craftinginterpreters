@@ -8,9 +8,9 @@ typedef struct {
     int line; // Track line number for error reporting.
 } LoxScanner;
 
-LoxScanner scanner;
+LoxScanner scanner = {0};
 
-void scanner_init(const char *source)
+void init_scanner(const char *source)
 {
     scanner.start = source;
     scanner.current = source;
@@ -18,35 +18,39 @@ void scanner_init(const char *source)
 }
 
 /* Source string MUST be a nul terminated C-string. */
-static bool scanner_is_at_end(void)
+static bool is_at_end(void)
 {
     return *scanner.current == '\0';
 }
 
-static char scanner_advance()
+/** 
+ * Increments the scanner's `.current` character pointer and returns the value
+ * of the character at the point before the increment.
+ */
+static char advance()
 {
     scanner.current++;
     return *(scanner.current - 1); // Since incremented, previous current was -1
 }
 
 /* Return the current character without consuming it. */
-static char scanner_peek_current(void)
+static char peek_current(void)
 {
     return *scanner.current;
 }
 
-static char scanner_peek_next(void)
+static char peek_next(void)
 {
-    if (scanner_is_at_end()) {
+    if (is_at_end()) {
         return '\0';
     }
     return *(scanner.current + 1);
 }
 
 /* If scanner.current == expected, also increment scanner.current pointer. */
-static bool scanner_match(char expected)
+static bool match(char expected)
 {
-    if (scanner_is_at_end()) {
+    if (is_at_end()) {
         return false;
     }
     if (*scanner.current != expected) {
@@ -57,7 +61,7 @@ static bool scanner_match(char expected)
 }
 
 /* Create a LoxToken based off the scanner's current state and given type. */
-static LoxToken scanner_make_token(LoxTokenType type)
+static LoxToken make_token(LoxTokenType type)
 {
     LoxToken token;
     token.type = type;
@@ -78,29 +82,29 @@ static LoxToken error_token(const char *message)
     return token;
 }
 
-static void scanner_skip_whitespace(void)
+static void skip_whitespace(void)
 {
     for (;;) {
-        char c = scanner_peek_current();
+        char c = peek_current();
         switch (c) {
         case ' ':
         case '\r':
-        case '\t':  
-            scanner_advance(); 
+        case '\t':
+            advance();
             break;
-        case '\n':  
-            scanner.line++; 
-            scanner_advance();
+        case '\n':
+            scanner.line++;
+            advance();
         case '/': // Comment aren't whitespace but may as well cover them here.
-            if (scanner_peek_next() == '/') {
-                while (scanner_peek_current() != '\n' && !scanner_is_at_end()) {
-                    scanner_advance();
+            if (peek_next() == '/') {
+                while (peek_current() != '\n' && !is_at_end()) {
+                    advance();
                 }
             } else {
                 return; // Was a single slash so leave it unconsumed here.
             }
             break;
-        default:    
+        default:
             return; // Once we hit a nonwhitespace, get outta here.
         }
     }
@@ -110,9 +114,9 @@ static void scanner_skip_whitespace(void)
  * Implement a simple Trie data structure to induce a Deterministic Finite State
  * Automaton (DFA). In other words, this is the innards of a state machine!
  *
- * Try to see if given substring in scanner's source code represents a keyword. 
+ * Try to see if given substring in scanner's source code represents a keyword.
  * If it doesn't we assume that this is a user-defined keyword.
- * 
+ *
  * @param start     Index into the main keyword where comparison begins.
  *                  e.g., start == 1 if we matched 'a' for "and".
  *                  or start == 2 if we matched 'f' and 'o' in "for".
@@ -133,7 +137,7 @@ static LoxTokenType check_keyword(int start, int length, const char *rest, LoxTo
 }
 
 /**
- * Could be a user variable name or a keyword. We used a somewhat hardcoded 
+ * Could be a user variable name or a keyword. We used a somewhat hardcoded
  * Trie data structure and some slightly clever searching to look up things
  * really really fast.
  */
@@ -145,7 +149,7 @@ static LoxTokenType identifier_type(void)
     case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
     case 'c': return check_keyword(1, 4, "lass", TOKEN_CLASS);
     case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
-    case 'f': 
+    case 'f':
         // None of our keywords have a length of 1 exactly.
         if (scanner.current - scanner.start > 1) {
             switch (*(scanner.start + 1)) {
@@ -174,92 +178,85 @@ static LoxTokenType identifier_type(void)
     return TOKEN_IDENTIFIER;
 }
 
-/* Helper macro because C Standard isalpha doesn't include '_'. */
-#define isident(c)  (isalpha(c) || isdigit(c) || (c == '_'))
-
-static LoxToken scanner_scan_identifier(void) {
-
-    while (isident(scanner_peek_current())) {
-        scanner_advance();
+static LoxToken scan_identifier(void)
+{
+    // Allow [a-zA-Z0-9_] for identifiers past the first character.
+    while (isalnum(peek_current()) || (peek_current() == '_')) {
+        advance();
     }
-    return scanner_make_token(identifier_type());
+    return make_token(identifier_type());
 }
 
-static LoxToken scanner_scan_string(void) 
+static LoxToken scan_string(void)
 {
-    while (scanner_peek_current() != '"' && !scanner_is_at_end()) {
+    while (peek_current() != '"' && !is_at_end()) {
         // Allow multi-line strings.
-        if (scanner_peek_current() == '\n') {
+        if (peek_current() == '\n') {
             scanner.line++;
         }
-        scanner_advance();
+        advance();
     }
-    if (scanner_is_at_end()) {
+    if (is_at_end()) {
         return error_token("Unterminated string.");
     }
     // Consume the closing double quote.
-    scanner_advance();
-    return scanner_make_token(TOKEN_STRING);
+    advance();
+    return make_token(TOKEN_STRING);
 }
 
-static LoxToken scanner_scan_number(void)
+static LoxToken scan_number(void)
 {
-    while (isdigit(scanner_peek_current())) {
-        scanner_advance();
+    while (isdigit(peek_current())) {
+        advance();
     }
-    
+
     // Look for a fractional part.
-    if (scanner_peek_current() == '.' && isdigit(scanner_peek_next())) {
+    if (peek_current() == '.' && isdigit(peek_next())) {
         // Consume the '.' so we can start the fractional section.
-        scanner_advance();
-        while (isdigit(scanner_peek_current())) {
-            scanner_advance();
+        advance();
+        while (isdigit(peek_current())) {
+            advance();
         }
     }
-    return scanner_make_token(TOKEN_NUMBER);
+    return make_token(TOKEN_NUMBER);
 }
 
-
-LoxToken scanner_scan_token(void)
+LoxToken scan_token(void)
 {
-    scanner_skip_whitespace();
+    skip_whitespace();
 
     scanner.start = scanner.current; // Assume we're starting a new token.
-    if (scanner_is_at_end()) {
-        return scanner_make_token(TOKEN_EOF); // Signal compiler to stop looking for more.
+    if (is_at_end()) {
+        return make_token(TOKEN_EOF); // Signal compiler to stop looking for more.
     }
-    
-    char c = scanner_advance();
+
+    char c = advance();
     // C Standard Library isalpha only covers the regex: [a-zA-Z].
     // See: https://en.cppreference.com/w/c/string/byte/isalpha
     if (isalpha(c) || c == '_') {
-        return scanner_scan_identifier();
+        return scan_identifier();
     }
     if (isdigit(c)) {
-        return scanner_scan_number();
+        return scan_number();
     }
 
     switch (c) {
-    case '(': return scanner_make_token(TOKEN_LEFT_PAREN);
-    case ')': return scanner_make_token(TOKEN_RIGHT_PAREN);
-    case '{': return scanner_make_token(TOKEN_LEFT_BRACE);
-    case '}': return scanner_make_token(TOKEN_RIGHT_BRACE);
-    case ';': return scanner_make_token(TOKEN_SEMICOLON);
-    case ',': return scanner_make_token(TOKEN_COMMA);
-    case '.': return scanner_make_token(TOKEN_DOT);
-    case '-': return scanner_make_token(TOKEN_MINUS);
-    case '+': return scanner_make_token(TOKEN_PLUS);
-    case '/': return scanner_make_token(TOKEN_SLASH);
-    case '*': return scanner_make_token(TOKEN_STAR);
-    case '!':
-        return scanner_make_token(scanner_match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-    case '=':
-        return scanner_make_token(scanner_match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-    case '<':
-        return scanner_make_token(scanner_match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-    case '>':
-        return scanner_make_token(scanner_match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
-    case '"': return scanner_scan_string();
+    case '(': return make_token(TOKEN_LEFT_PAREN);
+    case ')': return make_token(TOKEN_RIGHT_PAREN);
+    case '{': return make_token(TOKEN_LEFT_BRACE);
+    case '}': return make_token(TOKEN_RIGHT_BRACE);
+    case ';': return make_token(TOKEN_SEMICOLON);
+    case ',': return make_token(TOKEN_COMMA);
+    case '.': return make_token(TOKEN_DOT);
+    case '-': return make_token(TOKEN_MINUS);
+    case '+': return make_token(TOKEN_PLUS);
+    case '/': return make_token(TOKEN_SLASH);
+    case '*': return make_token(TOKEN_STAR);
+    case '!': return make_token(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
+    case '=': return make_token(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
+    case '<': return make_token(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+    case '>': return make_token(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+    case '"': return scan_string();
     }
     return error_token("Unexpected character.");
 }

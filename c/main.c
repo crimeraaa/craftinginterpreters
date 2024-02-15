@@ -13,7 +13,7 @@ static void run_repl(void)
             printf("\n");
             break;
         }
-        vm_interpret(line);
+        interpret_vm(line);
     }
 }
 
@@ -51,7 +51,7 @@ static char *read_file(const char *path)
 static void run_file(const char *path)
 {
     char *source = read_file(path);
-    LoxInterpretResult result = vm_interpret(source);
+    LoxInterpretResult result = interpret_vm(source);
     free(source);
     
     if (result == INTERPRET_COMPILE_ERROR) {
@@ -64,7 +64,7 @@ static void run_file(const char *path)
 
 int main(int argc, char *argv[]) 
 {
-    vm_init();
+    init_vm();
     if (argc == 1) {
         run_repl();
     } else if (argc == 2) {
@@ -73,5 +73,5 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: clox [path]\n");
         exit(EX_USAGE);
     }
-    vm_free();
+    free_vm();
 }

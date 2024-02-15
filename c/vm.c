@@ -2,58 +2,58 @@
 #include "compiler.h"
 #include "debug.h"
 
-LoxVM vm; // For simplicity we'll use global state. Not good practice!
+LoxVM vm = {0}; // For simplicity we'll use global state. Not good practice!
 
-/** 
- * Make the stacktop pointer point to the stack base. 
+/**
+ * Make the stacktop pointer point to the stack base.
  * Note that because our stack is, well, stack-allocated, simple moving the
  * pointer back is more than enough to indicate which memory is used.
  */
-static void vm_reset_stack() 
+static void vm_reset_stack()
 {
     vm.stacktop = vm.stack;
 }
 
-void vm_init(void)
+void init_vm(void)
 {
     vm_reset_stack();
 }
 
-void vm_free(void)
+void free_vm(void)
 {
-    
+
 }
 
-void vm_push(LoxValue value)
+void push_vm(LoxValue value)
 {
     *vm.stacktop = value;
     vm.stacktop++;
 }
 
-LoxValue vm_pop(void)
+LoxValue pop_vm(void)
 {
     vm.stacktop--;
     return *vm.stacktop;
 }
 
-/* No matter the precedence, the original value of `*vm.ip` is returned. */
+/* Return the current value of `vm.ip` but increment the pointer afterwards. */
 #define VM_READ_BYTE()      (*vm.ip++)
 #define VM_READ_CONSTANT()  (vm.chunk->constants.values[VM_READ_BYTE()])
-/** 
- * Ugly, but it does ensure *some* type safety! 
+/**
+ * Ugly, but it does ensure *some* type safety!
  * Note we use a do-while(false) loop to ensure correct scoping while only
  * running the contents once. It also allows/requires users to append a ';'.
- * 
+ *
  * Also remember that `rhs` is the latest element, hence we pop it off first.
  */
 #define VM_BINARY_OP(op)    \
     do { \
-        double rhs = vm_pop(); \
-        double lhs = vm_pop(); \
-        vm_push(lhs op rhs); \
+        double rhs = pop_vm(); \
+        double lhs = pop_vm(); \
+        push_vm(lhs op rhs); \
     } while(false)
 
-static LoxInterpretResult vm_run(void)
+static LoxInterpretResult run_vm(void)
 {
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
@@ -67,39 +67,44 @@ static LoxInterpretResult vm_run(void)
         }
         printf("\n");
         // Get relative offset from the beginning of the bytecode.
-        // Remember: vm.ip points to next opcode and vm.chunk->code is start.
-        chunk_disassemble_instruction(vm.chunk, (int)(vm.ip - vm.chunk->code));
+        // Remember: vm.ip points to next byte and vm.chunk->code is start.
+        disassemble_instruction(vm.chunk, (int)(vm.ip - vm.chunk->code));
 #endif
-        uint8_t opcode;
-        switch (opcode = VM_READ_BYTE()) {
+        uint8_t byte;
+        switch (byte = VM_READ_BYTE()) {
         case OP_CONSTANT: {
             LoxValue constant = VM_READ_CONSTANT();
-            vm_push(constant); // "Produce" a value by pushing it onto the stack.
+            push_vm(constant); // "Produce" a value by pushing it onto the stack.
             break;
         }
-        case OP_ADD:    { VM_BINARY_OP(+); break; }
-        case OP_SUB:    { VM_BINARY_OP(-); break; }
-        case OP_MUL:    { VM_BINARY_OP(*); break; }
-        case OP_DIV:    { VM_BINARY_OP(/); break; }
-        // Seems silly but think about it for a bit!
-        case OP_UNM: { 
-            vm_push(-vm_pop()); 
-            break; 
-        }
-        case OP_RET: { value_print(vm_pop());
+        case OP_ADD: VM_BINARY_OP(+); break;
+        case OP_SUB: VM_BINARY_OP(-); break;
+        case OP_MUL: VM_BINARY_OP(*); break;
+        case OP_DIV: VM_BINARY_OP(/); break;
+        case OP_UNM: 
+            push_vm(-pop_vm()); // Could be done w/o pushing and popping explicitly
+            break;
+        case OP_RET: 
+            value_print(pop_vm());
             printf("\n");
             return INTERPRET_OK;
-        }}
+        }
     }
 }
 
-LoxInterpretResult vm_interpret(const char *source)
+LoxInterpretResult interpret_vm(const char *source)
 {
-    // vm.chunk = chunk;
-    // vm.ip = vm.chunk->code;
-    // return vm_run();
-    compiler_compile(source);
-    return INTERPRET_OK;
+    LoxChunk chunk;
+    init_chunk(&chunk);
+    if (!compile(source, &chunk)) {
+        free_chunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk->code;
+    LoxInterpretResult result = run_vm();
+    free_chunk(&chunk);
+    return result;
 }
 
 #undef VM_BINARY_OP
