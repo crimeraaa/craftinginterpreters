@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include "vm.h"
 #include "compiler.h"
 #include "debug.h"
@@ -9,14 +10,31 @@ LoxVM vm = {0}; // For simplicity we'll use global state. Not good practice!
  * Note that because our stack is, well, stack-allocated, simple moving the
  * pointer back is more than enough to indicate which memory is used.
  */
-static void vm_reset_stack()
+static void reset_stack_vm()
 {
     vm.stacktop = vm.stack;
 }
 
+static void runtime_error_vm(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    fputs("\n", stderr);
+
+    // Subtract 1 since vm.ip always points to the *next* instruction in line.
+    // This is because the interpreter calls `advance()` before executing an
+    // instruction, so the failed instruction is the previous one.
+    size_t instruction = vm.ip - vm.chunk->code - 1;
+    int line = vm.chunk->lines[instruction];
+    fprintf(stderr, "[line %i] in script\n", line);
+    reset_stack_vm();
+}
+
 void init_vm(void)
 {
-    vm_reset_stack();
+    reset_stack_vm();
 }
 
 void free_vm(void)
@@ -34,6 +52,19 @@ LoxValue pop_vm(void)
 {
     vm.stacktop--;
     return *vm.stacktop;
+} 
+
+/* Return a value from from the stack but don't pop it. */
+static LoxValue peek_vm(int distance)
+{
+    // Subtract 1 since stacktop points to 1 past the last element.
+    return *(vm.stacktop - 1 - distance);
+}
+
+/* Return `false` for `nil` and `false`, `true` for everything else. */
+static bool isfalsy(LoxValue value)
+{
+    return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
 /* Return the current value of `vm.ip` but increment the pointer afterwards. */
@@ -45,12 +76,19 @@ LoxValue pop_vm(void)
  * running the contents once. It also allows/requires users to append a ';'.
  *
  * Also remember that `rhs` is the latest element, hence we pop it off first.
+ * 
+ * III:18.3.2: We pass in a `valuetype` macro in order to interpret the result
+ * of the operation.
  */
-#define VM_BINARY_OP(op)    \
+#define VM_BINARY_OP(valuetype, op)    \
     do { \
-        double rhs = pop_vm(); \
-        double lhs = pop_vm(); \
-        push_vm(lhs op rhs); \
+        if (!IS_NUMBER(peek_vm(0)) || !IS_NUMBER(peek_vm(1))) { \
+            runtime_error_vm("Operands must be numbers."); \
+            return INTERPRET_RUNTIME_ERROR; \
+        } \
+        double rhs = AS_NUMBER(pop_vm()); \
+        double lhs = AS_NUMBER(pop_vm()); \
+        push_vm(valuetype(lhs op rhs)); \
     } while(false)
 
 static LoxInterpretResult run_vm(void)
@@ -62,7 +100,7 @@ static LoxInterpretResult run_vm(void)
         printf("             ");
         for (LoxValue *slot = vm.stack; slot < vm.stacktop; slot++) {
             printf("[ ");
-            value_print(*slot);
+            print_value(*slot);
             printf(" ]");
         }
         printf("\n");
@@ -77,15 +115,35 @@ static LoxInterpretResult run_vm(void)
             push_vm(constant); // "Produce" a value by pushing it onto the stack.
             break;
         }
-        case OP_ADD: VM_BINARY_OP(+); break;
-        case OP_SUB: VM_BINARY_OP(-); break;
-        case OP_MUL: VM_BINARY_OP(*); break;
-        case OP_DIV: VM_BINARY_OP(/); break;
+        // Push some literals for Lox datatypes.
+        case OP_NIL: push_vm(NIL_VAL); break;
+        case OP_TRUE: push_vm(BOOL_VAL(true)); break;
+        case OP_FALSE: push_vm(BOOL_VAL(false)); break;
+        // Equality operation, not assignment operation!
+        case OP_EQUAL: {
+            LoxValue rhs = pop_vm();
+            LoxValue lhs = pop_vm();
+            push_vm(BOOL_VAL(values_equal(lhs, rhs)));
+            break;
+        }
+        // >= and <= will be 2 separate instructions each
+        case OP_GREATER: VM_BINARY_OP(BOOL_VAL, >); break;
+        case OP_LESS: VM_BINARY_OP(BOOL_VAL, <); break;
+        case OP_ADD: VM_BINARY_OP(NUMBER_VAL, +); break;
+        case OP_SUB: VM_BINARY_OP(NUMBER_VAL, -); break;
+        case OP_MUL: VM_BINARY_OP(NUMBER_VAL, *); break;
+        case OP_DIV: VM_BINARY_OP(NUMBER_VAL, /); break;
+        case OP_NOT: push_vm(BOOL_VAL(isfalsy(pop_vm()))); break;
         case OP_UNM: 
-            push_vm(-pop_vm()); // Could be done w/o pushing and popping explicitly
+            // NOTE: This immediately halts the interpreter!
+            if (!IS_NUMBER(peek_vm(0))) {
+                runtime_error_vm("Operand must be a number.");
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            push_vm(NUMBER_VAL(-AS_NUMBER(pop_vm())));
             break;
         case OP_RET: 
-            value_print(pop_vm());
+            print_value(pop_vm());
             printf("\n");
             return INTERPRET_OK;
         }

@@ -111,7 +111,10 @@ static void emit_byte(uint8_t byte)
     write_chunk(current_chunk(), byte, parser.previous.line);
 }
 
-/* Used when we have an opcode followed by a one-byte operand. */
+/** 
+ * Used when we have an opcode followed by a one-byte operand.
+ * Also useful to emit 2 consecutive instructions like OP_EQUAL and OP_NOT.
+ */
 static void emit_bytes(uint8_t byte1, uint8_t byte2)
 {
     emit_byte(byte1);
@@ -193,11 +196,38 @@ static void binary(void)
     parse_precedence((LoxPrecedence)(rule->precedence + 1));
 
     switch (optype) {
-    case TOKEN_PLUS:    emit_byte(OP_ADD); break;
-    case TOKEN_MINUS:   emit_byte(OP_SUB); break;
-    case TOKEN_STAR:    emit_byte(OP_MUL); break;
-    case TOKEN_SLASH:   emit_byte(OP_DIV); break;
+    case TOKEN_EQUAL_EQUAL: emit_byte(OP_EQUAL); break;
+    case TOKEN_GREATER: emit_byte(OP_GREATER); break;
+    // (x != y) <=> !(x == y)
+    case TOKEN_BANG_EQUAL: emit_bytes(OP_EQUAL, OP_NOT); break;
+    case TOKEN_LESS: emit_byte(OP_LESS); break;
+    // (x >= y) <=> !(x < y)
+    case TOKEN_GREATER_EQUAL: emit_bytes(OP_LESS, OP_NOT); break;
+    // (x <= y) <=> !(x > y)
+    case TOKEN_LESS_EQUAL: emit_bytes(OP_GREATER, OP_NOT); break;
+    case TOKEN_PLUS: emit_byte(OP_ADD); break;
+    case TOKEN_MINUS: emit_byte(OP_SUB); break;
+    case TOKEN_STAR: emit_byte(OP_MUL); break;
+    case TOKEN_SLASH: emit_byte(OP_DIV); break;
     default:            return; // Should be unreachable
+    }
+}
+
+/** 
+ * Emit a boolean or nil literal. 
+ *
+ * Assumes:
+ * 1. `parse_precedence` was called beforehand and consumed the keyword token.
+ * 
+ * If that's the case we can simply output the proper instruction.
+ */
+static void literal(void)
+{
+    switch (parser.previous.type) {
+    case TOKEN_FALSE:   emit_byte(OP_FALSE); break;
+    case TOKEN_NIL:     emit_byte(OP_NIL); break;
+    case TOKEN_TRUE:    emit_byte(OP_TRUE); break;
+    default:            return; // Should be unreachable.
     }
 }
 
@@ -221,7 +251,7 @@ static void grouping(void)
 static void number(void)
 {
     double value = strtod(parser.previous.start, NULL);
-    emit_constant(value);
+    emit_constant(NUMBER_VAL(value)); // Explicitly create a `LoxValue` number.
 }
 
 /**
@@ -244,6 +274,7 @@ static void unary(void)
 
     // Emit the operator instruction.
     switch (optype) {
+    case TOKEN_BANG:    emit_byte(OP_NOT); break;
     case TOKEN_MINUS:   emit_byte(OP_UNM); break;
     default:            return; // Unreachable
     }
@@ -265,14 +296,14 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_SLASH]           = {NULL,        binary,     PREC_FACTOR},
     [TOKEN_STAR]            = {NULL,        binary,     PREC_FACTOR},
     // Boolean operators
-    [TOKEN_BANG]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_BANG_EQUAL]      = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_BANG]            = {unary,       NULL,       PREC_NONE},
+    [TOKEN_BANG_EQUAL]      = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_EQUAL]           = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_EQUAL_EQUAL]     = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_GREATER]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_GREATER_EQUAL]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LESS]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LESS_EQUAL]      = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_EQUAL_EQUAL]     = {NULL,        binary,     PREC_EQUALITY},
+    [TOKEN_GREATER]         = {NULL,        binary,     PREC_COMPARISON},
+    [TOKEN_GREATER_EQUAL]   = {NULL,        binary,     PREC_COMPARISON},
+    [TOKEN_LESS]            = {NULL,        binary,     PREC_COMPARISON},
+    [TOKEN_LESS_EQUAL]      = {NULL,        binary,     PREC_COMPARISON},
     // User-defined variable names or value literals
     [TOKEN_IDENTIFIER]      = {NULL,        NULL,       PREC_NONE},
     [TOKEN_STRING]          = {NULL,        NULL,       PREC_NONE},
@@ -281,17 +312,17 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_AND]             = {NULL,        NULL,       PREC_NONE},
     [TOKEN_CLASS]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_ELSE]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_FALSE]           = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_FALSE]           = {literal,     NULL,       PREC_NONE},
     [TOKEN_FOR]             = {NULL,        NULL,       PREC_NONE},
     [TOKEN_FUN]             = {NULL,        NULL,       PREC_NONE},
     [TOKEN_IF]              = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_NIL]             = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_NIL]             = {literal,     NULL,       PREC_NONE},
     [TOKEN_OR]              = {NULL,        NULL,       PREC_NONE},
     [TOKEN_PRINT]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_RETURN]          = {NULL,        NULL,       PREC_NONE},
     [TOKEN_SUPER]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_THIS]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_TRUE]            = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_TRUE]            = {literal,     NULL,       PREC_NONE},
     [TOKEN_VAR]             = {NULL,        NULL,       PREC_NONE},
     [TOKEN_WHILE]           = {NULL,        NULL,       PREC_NONE},
     // Lox compiler interals
@@ -306,7 +337,7 @@ static void parse_precedence(LoxPrecedence precedence)
     // Get the prefix parser rule for our parser.current before advance()
     // e.g. emitting constants/literals or parsing left parentheses
     // 
-    // Will be one of: `number()`, `string()`, `grouping()`.
+    // Will be one of: `number()`, `string()`, `grouping()` or `literal()`.
     LoxParseFn prefix_rule = get_rule(parser.previous.type)->prefix;
     if (prefix_rule == NULL) {
         error("Expected an expression."); // Might be a syntax error
@@ -322,7 +353,7 @@ static void parse_precedence(LoxPrecedence precedence)
         advance(); // parser.previous, parser.curent = parser.current, (next token)
 
         // Get the infix parser rule for our parser.current before advance()
-        // as it could be something like a binary operator (+ - * /)
+        // as it could be a binary operator.
         LoxParseFn infix_rule = get_rule(parser.previous.type)->infix;
         infix_rule(); // binary() => operator is at parser.previous
     }

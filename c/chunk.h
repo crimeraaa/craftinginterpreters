@@ -6,12 +6,27 @@
 
 /* Named integer constants for each of our 1-byte instructions. */
 typedef enum {
-    OP_CONSTANT, // Load constant: 1 operand (index into chunk's constant pool)
-    OP_UNM, // Unary operator. Unary negation, a.k.a "Unary Minus": 1 operand.
-    OP_ADD, // Binary operator.
-    OP_SUB, // Binary operator.
-    OP_MUL, // Binary operator.
-    OP_DIV, // Binary operator.
+    // Load constant: 1 operand (index into chunk's constant pool)
+    OP_CONSTANT, 
+    // Keywords, with which we can skip straight to the parser using `literal()`.
+    OP_NIL,
+    OP_TRUE,
+    OP_FALSE,
+    // III:18.4.1: Equality and comparison operators
+    // For simplicity, we *don't* include explicit opcodes for >= and <=.
+    // This is to teach about how bytecode compilers don't need to follow the user!
+    OP_EQUAL,
+    OP_GREATER,
+    OP_LESS,
+    // Unary operator. Unary negation, a.k.a "Unary Minus": 1 operand.
+    OP_UNM, 
+    // Binary operators
+    OP_ADD,
+    OP_SUB,
+    OP_MUL,
+    OP_DIV,
+    // III:18.4.1: Logical not and falsiness
+    OP_NOT, 
     OP_RET, // Return statement. 0 operands.
 } LoxOpCode;
 

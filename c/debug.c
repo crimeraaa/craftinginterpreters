@@ -25,7 +25,7 @@ static int constant_instruction(const char *name, LoxChunk *chunk, int offset)
     // This gives us an index into this chunk's constants pool.
     uint8_t index = chunk->code[offset + 1]; 
     printf("%-16s %4d '", name, index);
-    value_print(chunk->constants.values[index]);
+    print_value(chunk->constants.values[index]);
     printf("'\n");
     return offset + 2; // `OP_CONSTANT`takes 2 bytes as it has 1 operand.
 }
@@ -42,10 +42,17 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     uint8_t opcode = chunk->code[offset]; // a.k.a our opcode
     switch(opcode) {
     case OP_CONSTANT: return constant_instruction("OP_CONSTANT", chunk, offset);
+    case OP_NIL: return simple_instruction("OP_NIL", offset);
+    case OP_TRUE: return simple_instruction("OP_TRUE", offset);
+    case OP_FALSE: return simple_instruction("OP_FALSE", offset);
+    case OP_EQUAL: return simple_instruction("OP_EQUAL", offset);
+    case OP_GREATER: return simple_instruction("OP_GREATER", offset);
+    case OP_LESS: return simple_instruction("OP_LESS", offset);
     case OP_ADD: return simple_instruction("OP_ADD", offset);
     case OP_SUB: return simple_instruction("OP_SUB", offset);
     case OP_MUL: return simple_instruction("OP_MUL", offset);
     case OP_DIV: return simple_instruction("OP_DIV", offset);
+    case OP_NOT: return simple_instruction("OP_NOT", offset);
     case OP_UNM: return simple_instruction("OP_UNM", offset);
     case OP_RET: return simple_instruction("OP_RET", offset);
     default:
