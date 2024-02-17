@@ -1,6 +1,9 @@
 #include "common.h"
-#include "scanner.h"
 #include "compiler.h"
+#include "scanner.h"
+#include "object.h"
+#include "memory.h"
+#include "value.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -40,13 +43,11 @@ typedef struct {
 LoxParser parser = {0};
 LoxChunk *compiling_chunk;
 
-static LoxChunk *current_chunk(void)
-{
+static LoxChunk *current_chunk(void) {
     return compiling_chunk;
 }
 
-static void error_at(LoxToken *token, const char *message)
-{
+static void error_at(LoxToken *token, const char *message) {
     if (parser.panicmode) {
         return; // Suppress other errors to avoid C++ style error vomit
     }
@@ -65,14 +66,12 @@ static void error_at(LoxToken *token, const char *message)
 }
 
 /* Report error at the location of the token we just consumed. */
-static void error(const char *message)
-{
+static void error(const char *message) {
     error_at(&parser.previous, message);
 }
 
 /* If scanner hands us an error token, inform the user. */
-static void error_at_current(const char *message)
-{
+static void error_at_current(const char *message) {
     error_at(&parser.current, message);
 }
 
@@ -81,8 +80,7 @@ static void error_at_current(const char *message)
  * `parser.current` is populated with whatever the next token is.
  * If we have an error, we look for more errors.
  */
-static void advance(void)
-{
+static void advance(void) {
     // Need for later when we get a lexeme *after* matching a token.
     parser.previous = parser.current;
 
@@ -97,8 +95,7 @@ static void advance(void)
 }
 
 /* Only advance if the current token type is of `type`, otherwise we error out. */
-static void consume(LoxTokenType type, const char *message)
-{
+static void consume(LoxTokenType type, const char *message) {
     if (parser.current.type == type) {
         advance();
         return;
@@ -106,8 +103,7 @@ static void consume(LoxTokenType type, const char *message)
     error_at_current(message);
 }
 
-static void emit_byte(uint8_t byte)
-{
+static void emit_byte(uint8_t byte) {
     write_chunk(current_chunk(), byte, parser.previous.line);
 }
 
@@ -115,8 +111,7 @@ static void emit_byte(uint8_t byte)
  * Used when we have an opcode followed by a one-byte operand.
  * Also useful to emit 2 consecutive instructions like OP_EQUAL and OP_NOT.
  */
-static void emit_bytes(uint8_t byte1, uint8_t byte2)
-{
+static void emit_bytes(uint8_t byte1, uint8_t byte2) {
     emit_byte(byte1);
     emit_byte(byte2);
 }
@@ -248,10 +243,22 @@ static void grouping(void)
  * 
  * Assumes `parser.previous` is the token of the number literal in question.
  */
-static void number(void)
-{
+static void number(void) {
     double value = strtod(parser.previous.start, NULL);
-    emit_constant(NUMBER_VAL(value)); // Explicitly create a `LoxValue` number.
+    emit_constant(make_loxnumber(value)); // Explicitly create a `LoxValue` number.
+}
+
+/** 
+ * Emits a string constant based on the string literal we received.
+ * Assumes the parser is currently pointing at a well-formed string literal,
+ * surrounded only by double quotes.
+ * 
+ * Note that Lox doesn't support escape sequences.
+ */
+static void string(void) {
+    // We use +1 and -2 to not include the double quotes in the string.
+    LoxString *s = copy_string(parser.previous.start + 1, parser.previous.length - 2);
+    emit_constant(make_loxobject(s));
 }
 
 /**
@@ -261,8 +268,7 @@ static void number(void)
  * `parser.previous` is a token for an unary operator,
  * `parser.current` is the operand for it.
  */
-static void unary(void)
-{
+static void unary(void) {
     // Keep the operator in this stack frame's memory so that when we recurse,
     // we can apply the correct order of operations as the stack unwinds.
     LoxTokenType optype = parser.previous.type;
@@ -306,7 +312,7 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_LESS_EQUAL]      = {NULL,        binary,     PREC_COMPARISON},
     // User-defined variable names or value literals
     [TOKEN_IDENTIFIER]      = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_STRING]          = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_STRING]          = {string,      NULL,       PREC_NONE},
     [TOKEN_NUMBER]          = {number,      NULL,       PREC_NONE},
     // Lox keywords (alphabetical)
     [TOKEN_AND]             = {NULL,        NULL,       PREC_NONE},
@@ -330,8 +336,7 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_EOF]             = {NULL,        NULL,       PREC_NONE},
 };
 
-static void parse_precedence(LoxPrecedence precedence)
-{
+static void parse_precedence(LoxPrecedence precedence) {
     advance(); // parser.previous, parser.current = parser.current, (next token)
 
     // Get the prefix parser rule for our parser.current before advance()
@@ -359,18 +364,15 @@ static void parse_precedence(LoxPrecedence precedence)
     }
 }
 
-static LoxParseRule *get_rule(LoxTokenType type)
-{
+static LoxParseRule *get_rule(LoxTokenType type) {
     return &rules[type];
 }
 
-static void expression(void)
-{
+static void expression(void) {
     parse_precedence(PREC_ASSIGNMENT); // Parse at the lowest precedence level.
 }
 
-bool compile(const char *source, LoxChunk *chunk)
-{
+bool compile(const char *source, LoxChunk *chunk) {
     init_scanner(source);
     parser.haderror = false;
     parser.panicmode = false;

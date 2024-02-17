@@ -14,8 +14,8 @@ void init_chunk(LoxChunk *chunk)
 
 void free_chunk(LoxChunk *chunk)
 {
-    FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
-    FREE_ARRAY(int, chunk->lines, chunk->capacity);
+    free_array(uint8_t, chunk->code, chunk->capacity);
+    free_array(int, chunk->lines, chunk->capacity);
     free_valuearray(&chunk->constants);
     init_chunk(chunk);
 }
@@ -25,12 +25,12 @@ void write_chunk(LoxChunk *chunk, uint8_t byte, int line)
     // Try to resize buffer.
     if (chunk->count + 1 > chunk->capacity) {
         int oldcapacity = chunk->capacity;
-        chunk->capacity = GROW_CAPACITY(oldcapacity);
+        chunk->capacity = grow_capacity(oldcapacity);
 
-        chunk->code = GROW_ARRAY(uint8_t, 
+        chunk->code = grow_array(uint8_t, 
             chunk->code, oldcapacity, chunk->capacity);
 
-        chunk->lines = GROW_ARRAY(int, 
+        chunk->lines = grow_array(int, 
             chunk->lines, oldcapacity, chunk->capacity);
     }
     chunk->code[chunk->count] = byte;

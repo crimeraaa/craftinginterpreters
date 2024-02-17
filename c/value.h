@@ -3,11 +3,21 @@
 
 #include "common.h"
 
+/** 
+ * III:19.1: Values and Objects 
+ *
+ * Forward declared to avoid circular dependencies.
+ */
+
+typedef struct LoxObject LoxObject;
+typedef struct LoxString LoxString;
+
 /* III:18.1: Tagged Unions */
 typedef enum {
     VAL_BOOL,
     VAL_NIL,
-    VAL_NUMBER
+    VAL_NUMBER,
+    VAL_OBJECT, // III:19.1: Values and Objects
 } LoxValueType;
 
 /* Note that in arrays, the compiler will likely add padding anyway! */
@@ -16,22 +26,26 @@ typedef struct {
     union {
         bool boolean;
         double number;
+        LoxObject *object;
     } as; // Holds the actual in-memory value for use.
 } LoxValue;
 
 /* Test a `LoxValue`'s type tag. */
-#define IS_BOOL(value)      ((value).type == VAL_BOOL)
-#define IS_NIL(value)       ((value).type == VAL_NIL)
-#define IS_NUMBER(value)    ((value).type == VAL_NUMBER)
+#define is_loxbool(v)      ((v).type == VAL_BOOL)
+#define is_loxnil(v)       ((v).type == VAL_NIL)
+#define is_loxnumber(v)    ((v).type == VAL_NUMBER)
+#define is_loxobject(v)    ((v).type == VAL_OBJECT)
 
 /* Interpret a `LoxValue`'s underlying value. */
-#define AS_BOOL(value)      ((value).as.boolean)
-#define AS_NUMBER(value)    ((value).as.number)
+#define as_loxbool(v)      ((v).as.boolean)
+#define as_loxnumber(v)    ((v).as.number)
+#define as_loxobject(v)    ((v).as.object)
 
-/* Create a new `LoxValue` of (or reset an existing one to) the given type. */
-#define BOOL_VAL(value)     ((LoxValue){VAL_BOOL,   {.boolean = value}})
-#define NIL_VAL             ((LoxValue){VAL_NIL,    {.number = 0}})
-#define NUMBER_VAL(value)   ((LoxValue){VAL_NUMBER, {.number = value}})
+/* Create a new `LoxValue` using the value of the given type. */
+#define make_loxbool(v)    ((LoxValue){VAL_BOOL,   {.boolean = v}})
+#define make_loxnil        ((LoxValue){VAL_NIL,    {.number = 0}})
+#define make_loxnumber(v)  ((LoxValue){VAL_NUMBER, {.number = v}})
+#define make_loxobject(v)  ((LoxValue){VAL_OBJECT, {.object = (LoxObject*)v}})
 
 /* Dynamic array which can act as a memory pool for values. */
 typedef struct {

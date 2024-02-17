@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "memory.h"
+#include "object.h"
 #include "value.h"
 
 void init_valuearray(LoxValueArray *array)
@@ -14,8 +15,8 @@ void write_valuearray(LoxValueArray *array, LoxValue value)
 {
     if (array->count + 1 > array->capacity) {
         int oldcapacity = array->capacity;
-        array->capacity = GROW_CAPACITY(oldcapacity);
-        array->values = GROW_ARRAY(LoxValue, 
+        array->capacity = grow_capacity(oldcapacity);
+        array->values = grow_array(LoxValue, 
             array->values, oldcapacity, array->capacity);
     }
     array->values[array->count] = value;
@@ -24,16 +25,17 @@ void write_valuearray(LoxValueArray *array, LoxValue value)
 
 void free_valuearray(LoxValueArray *array)
 {
-    FREE_ARRAY(LoxValue, array->values, array->capacity);
+    free_array(LoxValue, array->values, array->capacity);
     init_valuearray(array);
 }
 
 void print_value(LoxValue value)
 {
     switch (value.type) {
-    case VAL_BOOL: printf(AS_BOOL(value) ? "true" : "false"); break;
+    case VAL_BOOL: printf(as_loxbool(value) ? "true" : "false"); break;
     case VAL_NIL: printf("nil"); break;
-    case VAL_NUMBER: printf("%g", AS_NUMBER(value)); break;
+    case VAL_NUMBER: printf("%g", as_loxnumber(value)); break;
+    case VAL_OBJECT: print_object(value); break;
     }
 }
 
@@ -43,9 +45,17 @@ bool values_equal(LoxValue lhs, LoxValue rhs)
         return false;
     }
     switch (lhs.type) {
-    case VAL_BOOL: return AS_BOOL(lhs) == AS_BOOL(rhs);
+    case VAL_BOOL: return lhs.as.boolean == rhs.as.boolean;
     case VAL_NIL: return true;
-    case VAL_NUMBER: return AS_NUMBER(lhs) == AS_NUMBER(rhs);
+    case VAL_NUMBER: return lhs.as.number == rhs.as.number;
+    case VAL_OBJECT: {
+        LoxString *s1 = as_loxstring(lhs);
+        LoxString *s2 = as_loxstring(rhs);
+        if (s1->length == s2->length) {
+            return memcmp(s1->buffer, s2->buffer, s1->length);
+        }
+        return false;
+    }
     default: return false; // Should be unreachable.
     }
 }

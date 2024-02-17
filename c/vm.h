@@ -4,6 +4,7 @@
 #include "common.h"
 #include "chunk.h"
 #include "value.h"
+#include "object.h"
 
 #define STACK_MAX 256
 
@@ -13,7 +14,10 @@ typedef struct {
     uint8_t *ip; // Instruction pointer, always points to the *next* instruction.
     LoxValue stack[STACK_MAX]; // Holds all our globals and locals.
     LoxValue *stacktop; // Points to 1 past the stack's latest (top) element.
+    LoxObject *objects; // Head of linked list, tracks allocations.
 } LoxVM;
+
+extern LoxVM vm;
 
 /* Used by `LoxVM` to report and address various error states. */
 typedef enum {
