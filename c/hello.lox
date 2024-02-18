@@ -1,0 +1,9 @@
+print "Hi mom!";
+
+var greeting = "Hi";
+print greeting;
+
+name = "mom"; // This is being implicitly declared!!!!
+print name;
+
+print greeting + " " + name + "!";

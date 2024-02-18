@@ -302,15 +302,14 @@ static void string(bool can_assign) {
  * Otherwise, we can assume it's just retrieving the variable.
  */
 static void named_variable(LoxToken name, bool can_assign) {
-    (void)can_assign;
     uint8_t arg = identifier_constant(&name);
-    emit_bytes(OP_GET_GLOBAL, arg);
-    // if (can_assign && match(TOKEN_EQUAL)) {
-    //     expression();
-    //     emit_bytes(OP_SET_GLOBAL, arg);
-    // } else {
-    //     emit_bytes(OP_GET_GLOBAL, arg);
-    // }
+    // emit_bytes(OP_GET_GLOBAL, arg);
+    if (can_assign && match(TOKEN_EQUAL)) {
+        expression();
+        emit_bytes(OP_SET_GLOBAL, arg);
+    } else {
+        emit_bytes(OP_GET_GLOBAL, arg);
+    }
 }
 
 /**
@@ -410,7 +409,7 @@ static void parse_precedence(LoxPrecedence precedence) {
     }
     // If a variable name is nested in an expression with higher precedence,
     // we ignore the '='.
-    bool can_assign = (precedence <= PREC_ASSIGNMENT);
+    bool can_assign = precedence <= PREC_ASSIGNMENT;
     prefix_rule(can_assign);
 
     // Look for an infix parser. If yes, the prefix expression was already

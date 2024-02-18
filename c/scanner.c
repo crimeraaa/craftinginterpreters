@@ -95,6 +95,7 @@ static void skip_whitespace(void)
         case '\n':
             scanner.line++;
             advance();
+            break; // Forgot to include this, was breaking stuff!!
         case '/': // Comment aren't whitespace but may as well cover them here.
             if (peek_next() == '/') {
                 while (peek_current() != '\n' && !is_at_end()) {
