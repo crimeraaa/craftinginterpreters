@@ -2,8 +2,7 @@
 
 #include "debug.h"
 
-void disassemble_chunk(LoxChunk *chunk, const char *name)
-{
+void disassemble_chunk(LoxChunk *chunk, const char *name) {
     printf("== %s ==\n", name); // Indicate *which* chunk we're looking at
 
     // We rely on the disassembly to increment `offset` for us.
@@ -13,14 +12,18 @@ void disassemble_chunk(LoxChunk *chunk, const char *name)
     }
 }
 
-static int simple_instruction(const char *name, int offset)
-{
+static int simple_instruction(const char *name, int offset) {
     printf("%s\n", name);
     return offset + 1; // Return start of next instruction
 }
 
-static int constant_instruction(const char *name, LoxChunk *chunk, int offset)
-{
+static int byte_instruction(const char *name, LoxChunk *chunk, int offset) {
+    uint8_t slot = chunk->code[offset + 1];
+    printf("%-16s %4d\n", name, slot);
+    return offset + 2;
+}
+
+static int constant_instruction(const char *name, LoxChunk *chunk, int offset) {
     // code[offset] is OP_CONSTANT opcode, code[offset + 1] is the operand.
     // This gives us an index into this chunk's constants pool.
     uint8_t index = chunk->code[offset + 1]; 
@@ -44,7 +47,9 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     case OP_CONSTANT: return constant_instruction("OP_CONSTANT", chunk, offset);
     case OP_DEFINE_GLOBAL: return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
     case OP_GET_GLOBAL: return constant_instruction("OP_GET_GLOBAL", chunk, offset);
+    case OP_GET_LOCAL: return byte_instruction("OP_GET_LOCAL", chunk, offset);
     case OP_SET_GLOBAL: return constant_instruction("OP_SET_GLOBAL", chunk, offset);
+    case OP_SET_LOCAL: return byte_instruction("OP_SET_LOCAL", chunk, offset);
     case OP_NIL: return simple_instruction("OP_NIL", offset);
     case OP_TRUE: return simple_instruction("OP_TRUE", offset);
     case OP_FALSE: return simple_instruction("OP_FALSE", offset);

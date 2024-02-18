@@ -174,6 +174,18 @@ static LoxInterpretResult run_vm(void) {
             }
             break;
         }
+        // Since locals are pushed to the stack in order of their declaration,
+        // we can read them in a similar way.
+        case OP_GET_LOCAL: {
+            uint8_t slot = read_byte();
+            push_vm(vm.stack[slot]);
+            break;
+        }
+        case OP_SET_LOCAL: {
+            uint8_t slot = read_byte();
+            vm.stack[slot] = peek_vm(0);
+            break;
+        }
         // Used by expression statements to discard their results.
         case OP_POP: pop_vm(); break;
         // Push some literals for Lox datatypes.

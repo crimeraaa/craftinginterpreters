@@ -47,8 +47,7 @@ static LoxEntry *find_entry(LoxEntry *entries, int capacity, LoxString *key) {
                     tombstone = entry;
                 }
             }
-        } else if (entry->key == key || entry->key == NULL) {
-            // TODO: Don't compare pointers...
+        } else if (entry->key == key) {
             // If NULL, the array at this index is empty so we can write to it!
             return entry;
         }

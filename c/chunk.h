@@ -30,7 +30,9 @@ typedef enum {
     OP_POP,   // III:21.1.2: Expression Statements
     OP_DEFINE_GLOBAL,
     OP_GET_GLOBAL, // III:21.3: Reading Variables
+    OP_GET_LOCAL, // III:22.4.1: Interpreting local variables
     OP_SET_GLOBAL, // III:21.4: Assignment
+    OP_SET_LOCAL,
 } LoxOpCode;
 
 /* Our dynamic array to hold chunks of code. */

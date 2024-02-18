@@ -44,7 +44,19 @@ typedef struct {
     LoxPrecedence precedence;
 } LoxParseRule;
 
+typedef struct {
+    LoxToken name;
+    int depth;
+} LoxLocal;
+
+typedef struct {
+    LoxLocal locals[UINT8_COUNT];
+    int localcount; // How many local variables are in scope?
+    int scopedepth; // How many blocks surround the current bit of code? 0 is the global scope.
+} LoxCompiler;
+
 LoxParser parser = {0};
+LoxCompiler *current = NULL;
 LoxChunk *compiling_chunk;
 
 static LoxChunk *current_chunk(void) {
@@ -153,6 +165,12 @@ static void emit_constant(LoxValue value) {
     emit_bytes(OP_CONSTANT, make_constant(value));
 }
 
+static void init_compiler(LoxCompiler *self) {
+    self->localcount = 0;
+    self->scopedepth = 0;
+    current = self;
+}
+
 static void end_compiler(void) {
     emit_return();
 #ifdef DEBUG_PRINT_CODE
@@ -163,9 +181,25 @@ static void end_compiler(void) {
 #endif
 }
 
+/* Increment the current scope depth counter. */
+static void beginscope(void) {
+    current->scopedepth++;
+}
+
+/* Decrement the current scope depth counter. */
+static void endscope(void) {
+    current->scopedepth--;
+    // Pop all the local variables to return the stack to the state before this block.
+    while (current->localcount > 0 && current->locals[current->localcount - 1].depth > current->scopedepth) {
+        emit_byte(OP_POP);
+        current->localcount--;
+    }
+}
+
 static void expression(void);
 static void statement(void);
 static void declaration(void);
+static LoxParseRule *get_rule(LoxTokenType type);
 
 /**
  * Starts at the current token and parses any expression at given precedence
@@ -191,7 +225,89 @@ static uint8_t identifier_constant(LoxToken *name) {
     return make_constant(make_loxobject(s));
 }
 
-static LoxParseRule *get_rule(LoxTokenType type);
+static bool identifiers_equal(LoxToken *lhs, LoxToken *rhs) {
+    if (lhs->length != rhs->length) {
+        return false;
+    }
+    return memcmp(lhs->start, rhs->start, lhs->length) == 0;
+}
+
+/**
+ * Walks the list of tokens currently in scope.
+ * If we find a local variable with the given name, great!
+ * We go starting from the innermost of the curren scope going outwards.
+ * 
+ * If we didn't find a variable of this name, we use -1 as a sentinel.
+ */
+static int resolve_local(LoxCompiler *compiler, LoxToken *name) {
+    for (int i = compiler->localcount - 1; i >= 0; i--) {
+        LoxLocal *local = &compiler->locals[i];
+        if (identifiers_equal(name, &local->name)) {
+            if (local->depth == -1) {
+                error("Can't read local variable in its own initializer.");
+            }
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* Initialize the next available local in the compiler's stack array. */
+static void addlocal(LoxToken name) {
+    if (current->localcount >= UINT8_COUNT) {
+        error("Too many local variables in function.");
+        return;
+    }
+    LoxLocal *local = &current->locals[current->localcount++];
+    local->name = name;
+    local->depth = -1;
+}
+
+/* Compiler records the existence of a local variable. */
+static void declare_variable(void) {
+    if (current->scopedepth == 0) {
+        return;
+    }
+    LoxToken *name = &parser.previous;
+    for (int i = current->localcount - 1; i >= 0; i--) {
+        LoxLocal *local = &current->locals[i];
+        if (local->depth != -1 && local->depth < current->scopedepth) {
+            break;
+        }
+        if (identifiers_equal(name, &local->name)) {
+            error("A variable with this name already exists in this scope.");
+        }
+    }
+    addlocal(*name);
+}
+
+static uint8_t parse_variable(const char *error_message) {
+    consume(TOKEN_IDENTIFIER, error_message);
+    declare_variable();
+    // If nonzero (a.k.a. local scope), return a dummy table index since locals
+    // aren't looked up by name at runtime.
+    if (current->scopedepth > 0) {
+        return 0;
+    }
+    return identifier_constant(&parser.previous);
+}
+
+static void mark_initialized(void) {
+    current->locals[current->localcount - 1].depth = current->scopedepth;
+}
+
+/**
+ * Create the bytecode needed to a load a global variable's identifier.
+ * We use the index into the constants table, not the string itself.
+ */
+static void define_variable(uint8_t global) {
+    // Locals are temporaries, so we've already initialized them before here.
+    if (current->scopedepth > 0) {
+        mark_initialized();
+        return;
+    }
+    emit_bytes(OP_DEFINE_GLOBAL, global);
+}
 
 /** 
  * Parse and compile a binary expression of some kind.
@@ -220,19 +336,19 @@ static void binary(bool can_assign) {
 
     switch (optype) {
     case TOKEN_EQUAL_EQUAL: emit_byte(OP_EQUAL); break;
-    case TOKEN_GREATER: emit_byte(OP_GREATER); break;
+    case TOKEN_GREATER:     emit_byte(OP_GREATER); break;
     // (x != y) <=> !(x == y)
-    case TOKEN_BANG_EQUAL: emit_bytes(OP_EQUAL, OP_NOT); break;
-    case TOKEN_LESS: emit_byte(OP_LESS); break;
+    case TOKEN_BANG_EQUAL:  emit_bytes(OP_EQUAL, OP_NOT); break;
+    case TOKEN_LESS:        emit_byte(OP_LESS); break;
     // (x >= y) <=> !(x < y)
     case TOKEN_GREATER_EQUAL: emit_bytes(OP_LESS, OP_NOT); break;
     // (x <= y) <=> !(x > y)
-    case TOKEN_LESS_EQUAL: emit_bytes(OP_GREATER, OP_NOT); break;
-    case TOKEN_PLUS: emit_byte(OP_ADD); break;
-    case TOKEN_MINUS: emit_byte(OP_SUB); break;
-    case TOKEN_STAR: emit_byte(OP_MUL); break;
-    case TOKEN_SLASH: emit_byte(OP_DIV); break;
-    default:            return; // Should be unreachable
+    case TOKEN_LESS_EQUAL:  emit_bytes(OP_GREATER, OP_NOT); break;
+    case TOKEN_PLUS:        emit_byte(OP_ADD); break;
+    case TOKEN_MINUS:       emit_byte(OP_SUB); break;
+    case TOKEN_STAR:        emit_byte(OP_MUL); break;
+    case TOKEN_SLASH:       emit_byte(OP_DIV); break;
+    default:                return; // Should be unreachable
     }
 }
 
@@ -302,13 +418,22 @@ static void string(bool can_assign) {
  * Otherwise, we can assume it's just retrieving the variable.
  */
 static void named_variable(LoxToken name, bool can_assign) {
-    uint8_t arg = identifier_constant(&name);
-    // emit_bytes(OP_GET_GLOBAL, arg);
+    uint8_t getop, setop;
+    // Prioritize finding local variables with the given name.
+    int arg = resolve_local(current, &name);
+    if (arg != -1) {
+        getop = OP_GET_LOCAL;
+        setop = OP_SET_LOCAL;
+    } else {
+        arg = identifier_constant(&name);
+        getop = OP_GET_GLOBAL;
+        setop = OP_SET_GLOBAL;
+    }
     if (can_assign && match(TOKEN_EQUAL)) {
         expression();
-        emit_bytes(OP_SET_GLOBAL, arg);
+        emit_bytes(setop, (uint8_t)arg);
     } else {
-        emit_bytes(OP_GET_GLOBAL, arg);
+        emit_bytes(getop, (uint8_t)arg);
     }
 }
 
@@ -431,25 +556,19 @@ static void parse_precedence(LoxPrecedence precedence) {
     }
 }
 
-static uint8_t parse_variable(const char *error_message) {
-    consume(TOKEN_IDENTIFIER, error_message);
-    return identifier_constant(&parser.previous);
-}
-
-/**
- * Create the bytecode needed to a load a global variable's identifier.
- * We use the index into the constants table, not the string itself.
- */
-static void define_variable(uint8_t global) {
-    emit_bytes(OP_DEFINE_GLOBAL, global);
-}
-
 static LoxParseRule *get_rule(LoxTokenType type) {
     return &rules[type];
 }
 
 static void expression(void) {
     parse_precedence(PREC_ASSIGNMENT); // Parse at the lowest precedence level.
+}
+
+static void block(void) {
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+        declaration();
+    }
+    consume(TOKEN_RIGHT_BRACE, "Expected ')' after block.");
 }
 
 /**
@@ -490,6 +609,10 @@ static void expression_statement(void) {
 static void statement(void) {
     if (match(TOKEN_PRINT)) {
         print_statement();
+    } else if (match(TOKEN_LEFT_BRACE)) {
+        beginscope();
+        block();
+        endscope();
     } else {
         expression_statement();
     }
@@ -541,6 +664,8 @@ static void declaration(void) {
 
 bool compile(const char *source, LoxChunk *chunk) {
     init_scanner(source);
+    LoxCompiler compiler;
+    init_compiler(&compiler);
     parser.haderror = false;
     parser.panicmode = false;
     compiling_chunk = chunk;
