@@ -21,6 +21,7 @@ typedef struct {
     LoxValue stack[STACK_MAX]; // Holds all our globals and locals.
     LoxValue *stacktop; // Points to 1 past the stack's latest (top) element.
     LoxObject *objects; // Head of linked list, tracks allocations.
+    LoxTable globals; // Track identifiers of all declared global variables.
     LoxTable strings; // Track interned LoxString pointers for deduplication.
 } LoxVM;
 

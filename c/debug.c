@@ -42,6 +42,9 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     uint8_t opcode = chunk->code[offset]; // a.k.a our opcode
     switch(opcode) {
     case OP_CONSTANT: return constant_instruction("OP_CONSTANT", chunk, offset);
+    case OP_DEFINE_GLOBAL: return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
+    case OP_GET_GLOBAL: return constant_instruction("OP_GET_GLOBAL", chunk, offset);
+    case OP_SET_GLOBAL: return constant_instruction("OP_SET_GLOBAL", chunk, offset);
     case OP_NIL: return simple_instruction("OP_NIL", offset);
     case OP_TRUE: return simple_instruction("OP_TRUE", offset);
     case OP_FALSE: return simple_instruction("OP_FALSE", offset);
@@ -54,6 +57,8 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     case OP_DIV: return simple_instruction("OP_DIV", offset);
     case OP_NOT: return simple_instruction("OP_NOT", offset);
     case OP_UNM: return simple_instruction("OP_UNM", offset);
+    case OP_PRINT: return simple_instruction("OP_PRINT", offset);
+    case OP_POP: return simple_instruction("OP_POP", offset);
     case OP_RET: return simple_instruction("OP_RET", offset);
     default:
         printf("Unknown opcode %d.\n", opcode);

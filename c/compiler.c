@@ -31,7 +31,11 @@ typedef enum {
     PREC_PRIMARY,
 } LoxPrecedence;
 
-typedef void (*LoxParseFn)(void); // Typedef C function pointer syntax away
+/** 
+ * Although most of our functions don't use the bool, we need a uniform function
+ * pointer signature for our sanity! It sucks but this is the least worst option.
+ */
+typedef void (*LoxParseFn)(bool can_assign);
 
 /* Represents a single row in our hypothetical parser table. */
 typedef struct {
@@ -103,6 +107,20 @@ static void consume(LoxTokenType type, const char *message) {
     error_at_current(message);
 }
 
+/* Check if the parser's current type matches the given one. */
+static bool check(LoxTokenType type) {
+    return parser.current.type == type;
+}
+
+/* Returns true and advances parser only if current type matches the given one. */
+static bool match(LoxTokenType type) {
+    if (!check(type)) {
+        return false;
+    }
+    advance();
+    return true;
+}
+
 static void emit_byte(uint8_t byte) {
     write_chunk(current_chunk(), byte, parser.previous.line);
 }
@@ -116,14 +134,12 @@ static void emit_bytes(uint8_t byte1, uint8_t byte2) {
     emit_byte(byte2);
 }
 
-static void emit_return(void)
-{
+static void emit_return(void) {
     emit_byte(OP_RET);
 }
 
 /* Add `value` to the current chunk's constants table. */
-static uint8_t make_constant(LoxValue value)
-{
+static uint8_t make_constant(LoxValue value) {
     int index = add_constant(current_chunk(), value);
     if (index > UINT8_MAX) {
         error("Too many constants in one chunk.");
@@ -133,13 +149,11 @@ static uint8_t make_constant(LoxValue value)
 }
 
 /* Generate the code to load the known constant `value`. */
-static void emit_constant(LoxValue value)
-{
+static void emit_constant(LoxValue value) {
     emit_bytes(OP_CONSTANT, make_constant(value));
 }
 
-static void end_compiler(void)
-{
+static void end_compiler(void) {
     emit_return();
 #ifdef DEBUG_PRINT_CODE
     // If had a syntax error, don't dump it as it won't make sense.
@@ -150,6 +164,8 @@ static void end_compiler(void)
 }
 
 static void expression(void);
+static void statement(void);
+static void declaration(void);
 
 /**
  * Starts at the current token and parses any expression at given precedence
@@ -163,6 +179,18 @@ static void expression(void);
  */
 static void parse_precedence(LoxPrecedence precedence);
 
+/**
+ * Interns the user's variable identifier as a constant LoxString.
+ * This affects both the VM's chunk constants pool and the its interned strings.
+ * 
+ * We return the index of the interned string in the constants pool, which will
+ * be the argument used by a call to `OP_CONSTANT`.
+ */
+static uint8_t identifier_constant(LoxToken *name) {
+    LoxString *s = copy_string(name->start, name->length);
+    return make_constant(make_loxobject(s));
+}
+
 static LoxParseRule *get_rule(LoxTokenType type);
 
 /** 
@@ -172,8 +200,8 @@ static LoxParseRule *get_rule(LoxTokenType type);
  * `parser.previous`: is a binary operator token.
  * `parser.current`: is the right-hand side of the binary operator. 
  */
-static void binary(void)
-{
+static void binary(bool can_assign) {
+    (void)can_assign;
     // Keep the operator in this stack frame's memory so that when we recurse,
     // we can apply the correct order of operations as the stack unwinds.
     //
@@ -216,8 +244,8 @@ static void binary(void)
  * 
  * If that's the case we can simply output the proper instruction.
  */
-static void literal(void)
-{
+static void literal(bool can_assign) {
+    (void)can_assign;
     switch (parser.previous.type) {
     case TOKEN_FALSE:   emit_byte(OP_FALSE); break;
     case TOKEN_NIL:     emit_byte(OP_NIL); break;
@@ -232,8 +260,8 @@ static void literal(void)
  * Assumes the opening '(' was consumed. Does not emit any bytecode on its own,
  * but rather relies on subcalls to other expression parsers to do so.
  */
-static void grouping(void)
-{
+static void grouping(bool can_assign) {
+    (void)can_assign;
     expression(); // Recursively call to compile expression between the parens.
     consume(TOKEN_RIGHT_PAREN, "Expected ')' after expression.");
 }
@@ -243,22 +271,53 @@ static void grouping(void)
  * 
  * Assumes `parser.previous` is the token of the number literal in question.
  */
-static void number(void) {
+static void number(bool can_assign) {
+    (void)can_assign;
     double value = strtod(parser.previous.start, NULL);
     emit_constant(make_loxnumber(value)); // Explicitly create a `LoxValue` number.
 }
 
 /** 
  * Emits a string constant based on the string literal we received.
- * Assumes the parser is currently pointing at a well-formed string literal,
+ * If the string in question is already interned, we just get a pointer to it.
+ * Otherwise we allocate a new LoxString and intern it then.
+ *
+ * This assumes the parser is currently pointing at a well-formed string literal,
  * surrounded only by double quotes.
  * 
  * Note that Lox doesn't support escape sequences.
  */
-static void string(void) {
+static void string(bool can_assign) {
+    (void)can_assign;
     // We use +1 and -2 to not include the double quotes in the string.
     LoxString *s = copy_string(parser.previous.start + 1, parser.previous.length - 2);
     emit_constant(make_loxobject(s));
+}
+
+/**
+ * Emit the instructions needed to actually load a variable into the VM.
+ * 
+ * Right before compiling an expression though, we look for a '=' token.
+ * If we have one, we probably need to do assignment to this variable.
+ * Otherwise, we can assume it's just retrieving the variable.
+ */
+static void named_variable(LoxToken name, bool can_assign) {
+    (void)can_assign;
+    uint8_t arg = identifier_constant(&name);
+    emit_bytes(OP_GET_GLOBAL, arg);
+    // if (can_assign && match(TOKEN_EQUAL)) {
+    //     expression();
+    //     emit_bytes(OP_SET_GLOBAL, arg);
+    // } else {
+    //     emit_bytes(OP_GET_GLOBAL, arg);
+    // }
+}
+
+/**
+ * Look up a variable based on the identifier pointed to by `parser.previous`.
+ */
+static void variable(bool can_assign) {
+    named_variable(parser.previous, can_assign);
 }
 
 /**
@@ -268,7 +327,8 @@ static void string(void) {
  * `parser.previous` is a token for an unary operator,
  * `parser.current` is the operand for it.
  */
-static void unary(void) {
+static void unary(bool can_assign) {
+    (void)can_assign;
     // Keep the operator in this stack frame's memory so that when we recurse,
     // we can apply the correct order of operations as the stack unwinds.
     LoxTokenType optype = parser.previous.type;
@@ -311,7 +371,7 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_LESS]            = {NULL,        binary,     PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]      = {NULL,        binary,     PREC_COMPARISON},
     // User-defined variable names or value literals
-    [TOKEN_IDENTIFIER]      = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_IDENTIFIER]      = {variable,    NULL,       PREC_NONE},
     [TOKEN_STRING]          = {string,      NULL,       PREC_NONE},
     [TOKEN_NUMBER]          = {number,      NULL,       PREC_NONE},
     // Lox keywords (alphabetical)
@@ -348,7 +408,10 @@ static void parse_precedence(LoxPrecedence precedence) {
         error("Expected an expression."); // Might be a syntax error
         return;
     }
-    prefix_rule();
+    // If a variable name is nested in an expression with higher precedence,
+    // we ignore the '='.
+    bool can_assign = (precedence <= PREC_ASSIGNMENT);
+    prefix_rule(can_assign);
 
     // Look for an infix parser. If yes, the prefix expression was already
     // compiled and that might be an operand for us.
@@ -360,8 +423,26 @@ static void parse_precedence(LoxPrecedence precedence) {
         // Get the infix parser rule for our parser.current before advance()
         // as it could be a binary operator.
         LoxParseFn infix_rule = get_rule(parser.previous.type)->infix;
-        infix_rule(); // binary() => operator is at parser.previous
+        infix_rule(can_assign); // binary() => operator is at parser.previous
     }
+
+    // If we didn't consume the '=', that means we couldn't assign a value!    
+    if (can_assign && match(TOKEN_EQUAL)) {
+        error("Invalid assignment target.");
+    }
+}
+
+static uint8_t parse_variable(const char *error_message) {
+    consume(TOKEN_IDENTIFIER, error_message);
+    return identifier_constant(&parser.previous);
+}
+
+/**
+ * Create the bytecode needed to a load a global variable's identifier.
+ * We use the index into the constants table, not the string itself.
+ */
+static void define_variable(uint8_t global) {
+    emit_bytes(OP_DEFINE_GLOBAL, global);
 }
 
 static LoxParseRule *get_rule(LoxTokenType type) {
@@ -372,6 +453,93 @@ static void expression(void) {
     parse_precedence(PREC_ASSIGNMENT); // Parse at the lowest precedence level.
 }
 
+/**
+ * Desugaring to allow both `var a;` and `var a = 10`. Default value is nil.
+ */
+static void var_declaration(void) {
+    uint8_t global = parse_variable("Expected a variable name.");
+    if (match(TOKEN_EQUAL)) {
+        expression();
+    } else {
+        emit_byte(OP_NIL); // Default assign this variable to nil.
+    }
+    consume(TOKEN_SEMICOLON, "Expected ';' after variable declaration.");
+    define_variable(global);
+}
+
+static void print_statement(void) {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expected ';' after value.");
+    emit_byte(OP_PRINT);
+}
+
+/** 
+ * This is just an expression followed by a semicolon. 
+ * Semantically, we just evaluate the expression and discard the result.
+ * This is because, by themselves, statements do not result in a value.
+ */
+static void expression_statement(void) {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expected ';' after value.");
+    emit_byte(OP_POP);
+}
+
+/**
+ * This boils down to builtin statements (like print) or expressions statements,
+ * like variable declarations or whatnot.
+ */
+static void statement(void) {
+    if (match(TOKEN_PRINT)) {
+        print_statement();
+    } else {
+        expression_statement();
+    }
+}
+
+/**
+ * When an error occured, move to the parser to the next statement boundary.
+ * We do this by skipping tokens until we find a preceding token that can end a
+ * statement, like a semicolon, or one that begins a statement, like a declaration.
+ */
+static void synchronize(void) {
+    parser.panicmode = false;
+
+    while (parser.current.type != TOKEN_EOF) {
+        if (parser.previous.type == TOKEN_SEMICOLON) {
+            return;
+        }
+        switch (parser.current.type) {
+        case TOKEN_CLASS:
+        case TOKEN_FUN:
+        case TOKEN_VAR:
+        case TOKEN_FOR:
+        case TOKEN_IF:
+        case TOKEN_WHILE:
+        case TOKEN_PRINT:
+        case TOKEN_RETURN: return;
+        default: break; // Do nothing
+        }
+        advance();
+    }
+}
+
+/**
+ * In Backus-Naur Form grammar, the declaration typically just boils down
+ * to parsing some sort of statement, which in turn boils down to some series
+ * of expressions and/or more statements.
+ */
+static void declaration(void) {
+    if (match(TOKEN_VAR)) {
+        var_declaration();
+    } else {
+        statement();
+    }
+
+    if (parser.panicmode) {
+        synchronize();
+    }
+}
+
 bool compile(const char *source, LoxChunk *chunk) {
     init_scanner(source);
     parser.haderror = false;
@@ -379,8 +547,9 @@ bool compile(const char *source, LoxChunk *chunk) {
     compiling_chunk = chunk;
 
     advance(); // parser.previous = {0}, parser.current = (first token)
-    expression(); // Since we now point to first token, let's begin compiling!
-    consume(TOKEN_EOF, "Expected end of expression.");
+    while (!match(TOKEN_EOF)) {
+        declaration();
+    }
     end_compiler();
     return !parser.haderror;
 }

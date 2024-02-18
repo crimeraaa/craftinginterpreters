@@ -36,10 +36,12 @@ static void runtime_error_vm(const char *format, ...) {
 void init_vm(void) {
     reset_stack_vm();
     vm.objects = NULL;
+    init_table(&vm.globals); // III:21.2: Variable Declarations
     init_table(&vm.strings);
 }
 
 void free_vm(void) {
+    free_table(&vm.globals); // III:21.2: Variable Declarations
     free_table(&vm.strings);
     free_objects(); 
 }
@@ -89,13 +91,20 @@ static void concatenate(void) {
 /** 
  * Return the current value of `vm.ip` but increment the pointer afterwards. 
  */
-#define read_byte()      (*vm.ip++)
+#define read_byte()     (*vm.ip++)
+
 
 /**
  * Reads the constant value located at the constants pool, using the current
  * instruction pointer as the index. The instruction pointer is incremented.
  */
-#define read_constant()  (vm.chunk->constants.values[read_byte()])
+#define read_constant() (vm.chunk->constants.values[read_byte()])
+
+/**
+ * Assuming that the top of the stack contains a Lox string, immediately read
+ * it as such. This may not end well!
+ */
+#define read_string()   (as_loxstring(read_constant()))
 
 /**
  * Ugly, but it does ensure *some* type safety!
@@ -137,6 +146,36 @@ static LoxInterpretResult run_vm(void) {
         uint8_t byte;
         switch (byte = read_byte()) {
         case OP_CONSTANT: push_vm(read_constant()); break;
+        case OP_DEFINE_GLOBAL: {
+            LoxString *name = read_string();
+            table_set(&vm.globals, name, peek_vm(0));
+            pop_vm();
+            break;
+        }
+        case OP_GET_GLOBAL: {
+            LoxString *name = read_string();
+            LoxValue value; // Out parameter of `table.get`.
+            if (!table_get(&vm.globals, name, &value)) {
+                runtime_error_vm("Undefined variable '%s'.", name->buffer);
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            push_vm(value);
+            break;
+        }
+        case OP_SET_GLOBAL: {
+            LoxString *name = read_string();
+            // If the value doesn't exist, don't even try to assign to it!
+            // In a REPL, though, table set implicitly creates the value.
+            // So we delete it?
+            if (table_set(&vm.globals, name, peek_vm(0))) {
+                table_delete(&vm.globals, name);
+                runtime_error_vm("Undefined variable '%s'.", name->buffer);
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            break;
+        }
+        // Used by expression statements to discard their results.
+        case OP_POP: pop_vm(); break;
         // Push some literals for Lox datatypes.
         case OP_NIL:   push_vm(make_loxnil); break;
         case OP_TRUE:  push_vm(make_loxbool(true)); break;
@@ -177,9 +216,15 @@ static LoxInterpretResult run_vm(void) {
             }
             push_vm(make_loxnumber(-as_loxnumber(pop_vm())));
             break;
-        case OP_RET: 
+        case OP_PRINT: {
+            // When interpreter reaches this instruction, the singular argument
+            // to print should be at the top of the stack.
             print_value(pop_vm());
             printf("\n");
+            break;
+        }
+        case OP_RET: 
+            // Exit interpreter.
             return INTERPRET_OK;
         }
     }
@@ -203,3 +248,4 @@ LoxInterpretResult interpret_vm(const char *source)
 #undef make_binary_op
 #undef read_byte
 #undef read_constant
+#undef read_string

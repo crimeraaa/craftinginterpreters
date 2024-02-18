@@ -18,16 +18,19 @@ typedef enum {
     OP_EQUAL,
     OP_GREATER,
     OP_LESS,
-    // Unary operator. Unary negation, a.k.a "Unary Minus": 1 operand.
-    OP_UNM, 
+    OP_UNM,   // Unary operator. Unary negation, a.k.a "Unary Minus": 1 operand.
     // Binary operators
     OP_ADD,
     OP_SUB,
     OP_MUL,
     OP_DIV,
-    // III:18.4.1: Logical not and falsiness
-    OP_NOT, 
-    OP_RET, // Return statement. 0 operands.
+    OP_RET,   // Return statement. 0 operands.
+    OP_NOT,   // III:18.4.1: Logical not and falsiness
+    OP_PRINT, // III:21.1.1: Print Statements
+    OP_POP,   // III:21.1.2: Expression Statements
+    OP_DEFINE_GLOBAL,
+    OP_GET_GLOBAL, // III:21.3: Reading Variables
+    OP_SET_GLOBAL, // III:21.4: Assignment
 } LoxOpCode;
 
 /* Our dynamic array to hold chunks of code. */
