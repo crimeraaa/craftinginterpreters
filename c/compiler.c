@@ -45,12 +45,17 @@ typedef struct {
 } LoxParseRule;
 
 typedef struct {
-    LoxToken name;
-    int depth;
+    LoxToken name; // Resolve identifiers based on the locals' names.
+    int depth; // Scope depth of enclosing block at declaration. -1 indicates global.
 } LoxLocal;
 
+/**
+ * Since our compiler creates variables on the stack in order of their declaration,
+ * we just need to know how far down the stack we need to go in order to retrieve
+ * those values. These effectively function as our local scope variables.
+ */
 typedef struct {
-    LoxLocal locals[UINT8_COUNT];
+    LoxLocal locals[UINT8_COUNT]; // All the locals currently in scope.
     int localcount; // How many local variables are in scope?
     int scopedepth; // How many blocks surround the current bit of code? 0 is the global scope.
 } LoxCompiler;
@@ -186,10 +191,13 @@ static void beginscope(void) {
     current->scopedepth++;
 }
 
-/* Decrement the current scope depth counter. */
+/** 
+ * Decrement the current scope depth counter and pop all its local variables.
+ * This is to return the overall stack to the state before the block was entered.
+ */
 static void endscope(void) {
     current->scopedepth--;
-    // Pop all the local variables to return the stack to the state before this block.
+    // Keep going while not global and current local variable is in our scope.
     while (current->localcount > 0 && current->locals[current->localcount - 1].depth > current->scopedepth) {
         emit_byte(OP_POP);
         current->localcount--;
@@ -225,6 +233,10 @@ static uint8_t identifier_constant(LoxToken *name) {
     return make_constant(make_loxobject(s));
 }
 
+/**
+ * Since we have LoxTokens and not LoxStrings, we need to do the good 'ol
+ * C-style byte-by-byte comparison.
+ */
 static bool identifiers_equal(LoxToken *lhs, LoxToken *rhs) {
     if (lhs->length != rhs->length) {
         return false;
@@ -260,17 +272,28 @@ static void addlocal(LoxToken name) {
     }
     LoxLocal *local = &current->locals[current->localcount++];
     local->name = name;
-    local->depth = -1;
+    local->depth = -1; // Default to -1 until this gets marked initialized.
 }
 
-/* Compiler records the existence of a local variable. */
+/** 
+ * Here, the compiler records the existence of a local variable. 
+ * This should only be done for locals since globals are late bound, meaning
+ * the compiler doesn't keep track of which declarations of them it's seen.
+ * 
+ * For locals though, the compiler needs to remember that the variable exists.
+ * We do this by appending to the compiler's local variable list in `addlocal()`.
+ */
 static void declare_variable(void) {
     if (current->scopedepth == 0) {
         return;
     }
     LoxToken *name = &parser.previous;
+    // Current scope is always at the end of the array.
+    // localcount is affected by `addlocal()` and `endscope()`.
     for (int i = current->localcount - 1; i >= 0; i--) {
         LoxLocal *local = &current->locals[i];
+        // Break once we hit a scope outside of the one we were looking at.
+        // Because that means we looked at all the variables and found no error.
         if (local->depth != -1 && local->depth < current->scopedepth) {
             break;
         }
@@ -281,11 +304,18 @@ static void declare_variable(void) {
     addlocal(*name);
 }
 
+/**
+ * If our current scope greater than 0, that means it's a local scope.
+ *
+ * So we return 0 to indicate to `define_variable()` that it should just mark the
+ * variable as initialized and not omit the instructions to load a constant.
+ * 
+ * This is because local variables aren't looked up by name at runtime.
+ */
 static uint8_t parse_variable(const char *error_message) {
     consume(TOKEN_IDENTIFIER, error_message);
     declare_variable();
-    // If nonzero (a.k.a. local scope), return a dummy table index since locals
-    // aren't looked up by name at runtime.
+    // Scope depth greater than 0 indicates a local scope of some kind.
     if (current->scopedepth > 0) {
         return 0;
     }
@@ -299,9 +329,13 @@ static void mark_initialized(void) {
 /**
  * Create the bytecode needed to a load a global variable's identifier.
  * We use the index into the constants table, not the string itself.
+ *
+ * Locals are temporaries, so we've already initialized them before here.
+ * This means we don't need to create a local variable at runtime.
+ * The VM stack index, along with some bookkeeping, is more than enough!
  */
 static void define_variable(uint8_t global) {
-    // Locals are temporaries, so we've already initialized them before here.
+    // scope depth greater than 0 indicates we're at a local scope of some kind.
     if (current->scopedepth > 0) {
         mark_initialized();
         return;
@@ -421,6 +455,7 @@ static void named_variable(LoxToken name, bool can_assign) {
     uint8_t getop, setop;
     // Prioritize finding local variables with the given name.
     int arg = resolve_local(current, &name);
+    // -1 indicates not a local scope, so we need to get/set a global variable.
     if (arg != -1) {
         getop = OP_GET_LOCAL;
         setop = OP_SET_LOCAL;
@@ -564,6 +599,17 @@ static void expression(void) {
     parse_precedence(PREC_ASSIGNMENT); // Parse at the lowest precedence level.
 }
 
+/**
+ * Assumes that we already consumed and verified a left bracket token.
+ * 
+ * A block scope is just a declaration statement boiling down to everything,
+ * including other block statements. This includes variable declarations and
+ * expression evaluations.
+ * 
+ * So really, the only difference is in how local variables are looked up.
+ * This is why we need state-keeping via the `beginscope()` and `endscope()` 
+ * functions.
+ */
 static void block(void) {
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
         declaration();

@@ -32,9 +32,9 @@ void free_valuearray(LoxValueArray *self)
 void print_value(LoxValue value)
 {
     switch (value.type) {
-    case VAL_BOOL: printf(as_loxbool(value) ? "true" : "false"); break;
+    case VAL_BOOL: printf(value.as.boolean == true ? "true" : "false"); break;
     case VAL_NIL: printf("nil"); break;
-    case VAL_NUMBER: printf("%g", as_loxnumber(value)); break;
+    case VAL_NUMBER: printf("%g", value.as.number); break;
     case VAL_OBJECT: print_object(value); break;
     }
 }
@@ -49,7 +49,7 @@ bool values_equal(LoxValue lhs, LoxValue rhs)
     case VAL_NIL: return true;
     case VAL_NUMBER: return lhs.as.number == rhs.as.number;
     // III:20.5: Since we intern strings, pointer comparisons are now ok!
-    case VAL_OBJECT: return as_loxobject(lhs) == as_loxobject(rhs);
+    case VAL_OBJECT: return lhs.as.object == rhs.as.object;
     default: return false; // Should be unreachable.
     }
 }

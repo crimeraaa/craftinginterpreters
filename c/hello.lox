@@ -1,9 +1,16 @@
 print "Hi mom!";
-
 var greeting = "Hi";
-print greeting;
+var name = "mom";
 
-name = "mom"; // This is being implicitly declared!!!!
-print name;
+// name = "mom"; // This is being implicitly declared!!!!
+// print name; // Nevermind, &vm.strings was somehow evaluated as &vm.globals...
 
-print greeting + " " + name + "!";
+{
+    var name = "Bobby";
+    {
+        var greeting = "Hello";
+        print greeting + " " + name + "!"; // Hello Bobby!
+    }
+    print greeting + " " + name + "!"; // Hi Bobby!
+}
+print greeting + " " + name + "!"; // Hi mom!

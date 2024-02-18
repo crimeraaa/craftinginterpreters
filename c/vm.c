@@ -175,7 +175,9 @@ static LoxInterpretResult run_vm(void) {
             break;
         }
         // Since locals are pushed to the stack in order of their declaration,
-        // we can read them in a similar way.
+        // we can read them in a similar way using the instruction pointer.
+        // Pushing the same local value again seems redundant, but we need to do
+        // this since other bytecode instructions only poke at the stacktop.
         case OP_GET_LOCAL: {
             uint8_t slot = read_byte();
             push_vm(vm.stack[slot]);
@@ -202,7 +204,7 @@ static LoxInterpretResult run_vm(void) {
         // >= and <= will be 2 separate instructions each
         case OP_GREATER: make_binary_op(make_loxbool, >); break;
         case OP_LESS: make_binary_op(make_loxbool, <); break;
-        case OP_ADD: {
+        case OP_ADD:
             if (is_loxstring(peek_vm(0)) && is_loxstring(peek_vm(1))) {
                 concatenate();
             } else if (is_loxnumber(peek_vm(0)) && is_loxnumber(peek_vm(1))) {
@@ -215,7 +217,6 @@ static LoxInterpretResult run_vm(void) {
                 return INTERPRET_RUNTIME_ERROR;
             }
             break;
-        }
         case OP_SUB: make_binary_op(make_loxnumber, -); break;
         case OP_MUL: make_binary_op(make_loxnumber, *); break;
         case OP_DIV: make_binary_op(make_loxnumber, /); break;
@@ -228,13 +229,12 @@ static LoxInterpretResult run_vm(void) {
             }
             push_vm(make_loxnumber(-as_loxnumber(pop_vm())));
             break;
-        case OP_PRINT: {
+        case OP_PRINT:
             // When interpreter reaches this instruction, the singular argument
             // to print should be at the top of the stack.
             print_value(pop_vm());
             printf("\n");
             break;
-        }
         case OP_RET: 
             // Exit interpreter.
             return INTERPRET_OK;
