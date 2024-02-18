@@ -54,9 +54,9 @@ typedef struct {
     LoxValue *values;
 } LoxValueArray; 
 
-void init_valuearray(LoxValueArray *array);
-void write_valuearray(LoxValueArray *array, LoxValue value);
-void free_valuearray(LoxValueArray *array);
+void init_valuearray(LoxValueArray *self);
+void write_valuearray(LoxValueArray *self, LoxValue value);
+void free_valuearray(LoxValueArray *self);
 void print_value(LoxValue value);
 
 /**

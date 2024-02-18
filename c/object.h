@@ -17,10 +17,15 @@ struct LoxObject {
     LoxObject *next; // We use an instrusive linked list to track allocations.
 };
 
+/**
+ * LoxString struct proper. This is our internal representation of user-facing
+ * strings.
+ */
 struct LoxString {
-    LoxObject obj;
-    int length;
-    char *buffer;
+    LoxObject obj; // Header to mimic inheritance via type punning.
+    int length; // Number of characters in the buffer save for the nul terminator.
+    char *buffer; // Dynamically allocated string buffer.
+    uint32_t hash; // Hash code result of hash function. Calculated once.
 };
 
 /**

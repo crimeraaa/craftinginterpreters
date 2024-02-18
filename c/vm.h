@@ -5,16 +5,23 @@
 #include "chunk.h"
 #include "value.h"
 #include "object.h"
+#include "table.h"
 
 #define STACK_MAX 256
 
-/* Say hello to the CLox Virtual Machine! It executes Lox bytecode. */
+/** 
+ * Say hello to the CLox Virtual Machine! It executes Lox bytecode.
+ * It also stores global state for the particular Lox interpreter instance,
+ * such as values currently on the stack, what objects were allocated, and
+ * even interns strings to allow quick Lua-style equality comparison.
+ */
 typedef struct {
     LoxChunk *chunk; // Chunk of bytecode we need to execute.
     uint8_t *ip; // Instruction pointer, always points to the *next* instruction.
     LoxValue stack[STACK_MAX]; // Holds all our globals and locals.
     LoxValue *stacktop; // Points to 1 past the stack's latest (top) element.
     LoxObject *objects; // Head of linked list, tracks allocations.
+    LoxTable strings; // Track interned LoxString pointers for deduplication.
 } LoxVM;
 
 extern LoxVM vm;
