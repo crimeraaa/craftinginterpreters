@@ -1,0 +1,7 @@
+var alpha = "alpha";
+var bravo = "bravo";
+print(alpha and bravo);
+print(alpha or bravo);
+alpha = nil;
+print(alpha and bravo);
+print(alpha or bravo);

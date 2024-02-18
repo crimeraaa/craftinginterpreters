@@ -383,6 +383,34 @@ static void define_variable(uint8_t global) {
     emit_bytes(OP_DEFINE_GLOBAL, global);
 }
 
+/**
+ * III:23.2: Logical operators
+ * 
+ * Parse and compile a short-circuiting logical AND.
+ * 
+ * Assumes that the left-hand operand has already been compiled and is at the
+ * top of the stack.
+ * 
+ * If truthy, we fall through to the OP_POP instruction and evaluate the 2nd operand.
+ * Otherwise, if falsy, we return the first operand as is without evaluating
+ * the 2nd operand.
+ * 
+ * Visualization:
+ * 
+ *      <left operand expression>
+ * +--- OP_JUMP_IF_FALSE
+ * |    OP_POP
+ * |    <right operand expression>
+ * +--> continues;
+ */
+static void and_(bool can_assign) {
+    (void)can_assign;
+    int endjump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_POP);
+    parse_precedence(PREC_AND);
+    patch_jump(endjump);
+}
+
 /** 
  * Parse and compile a binary expression of some kind.
  *
@@ -465,6 +493,43 @@ static void number(bool can_assign) {
     (void)can_assign;
     double value = strtod(parser.previous.start, NULL);
     emit_constant(make_loxnumber(value)); // Explicitly create a `LoxValue` number.
+}
+
+/**
+ * III:23.2.1: Logical or operator
+ * 
+ * A bit trickier than logical AND.
+ * 
+ * If the left hand side is truthy, we jump over the right hand side without
+ * evaluating it. We return the left hand side as is since it's truthy.
+ * 
+ * Otherwise, we try to evaluate the right hand side. Regardless of its result,
+ * we return it as is. So it may be truthy or falsy! It's useful to emulate
+ * default values.
+ * 
+ * Visualization:
+ *
+ *           <left-operand expression> 
+ *      +--  OP_JUMP_IF_FALSE
+ *   +--|--  OP_JUMP
+ *   |  +--> OP_POP
+ *   |       <right-operand expression>
+ *   +-----> continues...
+ *   
+ * This is a bit inefficient compared to our `and_()`, but it's simple enough.
+ */
+static void or_(bool can_assign) {
+    (void)can_assign;
+    int elsejump = emit_jump(OP_JUMP_IF_FALSE);
+    int endjump = emit_jump(OP_JUMP);
+
+    // Only pop when left hand side is true as we'll do an OP_JUMP_IF_FALSE.
+    // This cleans up the stack for the evaluation of the right hand side.
+    patch_jump(elsejump);
+    emit_byte(OP_POP);
+
+    parse_precedence(PREC_OR);
+    patch_jump(endjump);
 }
 
 /** 
@@ -574,7 +639,7 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_STRING]          = {string,      NULL,       PREC_NONE},
     [TOKEN_NUMBER]          = {number,      NULL,       PREC_NONE},
     // Lox keywords (alphabetical)
-    [TOKEN_AND]             = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_AND]             = {NULL,        and_,       PREC_AND},
     [TOKEN_CLASS]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_ELSE]            = {NULL,        NULL,       PREC_NONE},
     [TOKEN_FALSE]           = {literal,     NULL,       PREC_NONE},
@@ -582,7 +647,7 @@ LoxParseRule rules[TOKEN_COUNT] = {
     [TOKEN_FUN]             = {NULL,        NULL,       PREC_NONE},
     [TOKEN_IF]              = {NULL,        NULL,       PREC_NONE},
     [TOKEN_NIL]             = {literal,     NULL,       PREC_NONE},
-    [TOKEN_OR]              = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_OR]              = {NULL,        or_,        PREC_OR},
     [TOKEN_PRINT]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_RETURN]          = {NULL,        NULL,       PREC_NONE},
     [TOKEN_SUPER]           = {NULL,        NULL,       PREC_NONE},
@@ -703,6 +768,17 @@ static void expression_statement(void) {
  * 
  * In that case we need an unconditional jump. Even if there's no else branch!
  * As a result every if statement actually has an implicit else.
+ * 
+ * Visualization:
+ * 
+ *          <condition expression>
+ *     +--- OP_JUMP_IF_FALSE
+ *     |    OP_POP
+ *     |    <then branch statement>
+ *  +--|--- OP_JUMP
+ *  |  +--> OP_POP
+ *  |       <else branch statement>
+ *  +-----> continues...
  */
 static void if_statement(void) {
     consume(TOKEN_LEFT_PAREN, "Expected '(' after 'if'.");
@@ -710,25 +786,29 @@ static void if_statement(void) {
     consume(TOKEN_RIGHT_PAREN, "Expected ')' after condition.");
     
     // How many bytes to offset the instruction pointer by.
-    int then_jump = emit_jump(OP_JUMP_IF_FALSE);
+    int thenjump = emit_jump(OP_JUMP_IF_FALSE);
 
     // Zero stack rule: ensure stack is the same size as before.
     // Since we evaluated an expression, it likely pushed a value onto the stack.
     // So we pop if off in order to clean up the stack before the if-then branch.
+    //
+    // We only reach here when the condition is truthy as it'll fall through.
     emit_byte(OP_POP);
     statement();
     
     // If-then branches MUST have a jump especially when there's an else branch.
     // This is to avoid accidentally falling through when the condition is truthy.
-    int else_jump = emit_jump(OP_JUMP);
-    patch_jump(then_jump);
+    // 
+    // We only reach here when the condition if falsy as it'll always jump here.
+    int elsejump = emit_jump(OP_JUMP);
+    patch_jump(thenjump);
     emit_byte(OP_POP);
 
     // If have an explicit else branch, compile it.
     if (match(TOKEN_ELSE)) {
         statement();
     }
-    patch_jump(else_jump); // Still need this even if no else branch!
+    patch_jump(elsejump); // Still need this even if no else branch!
 }
 
 /**
