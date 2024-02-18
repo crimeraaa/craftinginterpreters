@@ -49,6 +49,8 @@ static uint32_t hash_string(const char *key, int length) {
 
 LoxString *copy_string(const char *literal, int length) {
     uint32_t hash = hash_string(literal, length);
+    // Had a weird bug where &vm.strings evaluated to &vm.globals for some reason
+    // the only fix was rewriting it???
     LoxString *interned = table_findstring(&vm.strings, literal, length, hash);
     // No need to allocate a new LoxString for one that's been interned already.
     if (interned != NULL) {
