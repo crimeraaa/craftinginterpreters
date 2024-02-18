@@ -27,6 +27,8 @@ typedef enum {
     OP_RET,   // Return statement. 0 operands.
     OP_NOT,   // III:18.4.1: Logical not and falsiness
     OP_PRINT, // III:21.1.1: Print Statements
+    OP_JUMP,  // III:23.1.1: Else Clauses
+    OP_JUMP_IF_FALSE, // III:23.1: If Statements
     OP_POP,   // III:21.1.2: Expression Statements
     OP_DEFINE_GLOBAL,
     OP_GET_GLOBAL, // III:21.3: Reading Variables

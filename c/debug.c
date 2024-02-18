@@ -23,6 +23,33 @@ static int byte_instruction(const char *name, LoxChunk *chunk, int offset) {
     return offset + 2;
 }
 
+/**
+ * III:23.1.1
+ * 
+ * We read 2 8-bit values and use them to build 1 16-bit value.
+ * 
+ * 1. code[offset + 1]: This is an 8-bit value representing the upper 8 bits of
+ *                      a full 16-bit value. We bitshift it left by 8 bits to
+ *                      retrieve back that 16-bit representation of them.
+ *
+ * 2. code[offset + 2]: This is an 8-bit value representing the lower 8 bits of
+ *                      a full 16-bit value. We can bitwise OR it so that the all
+ *                      the 1 bits of both operands are combined into a 16-bit.
+ */
+#define read_jump(code, offset) (code[offset + 1] << 8) | code[offset + 2]
+
+/**
+ * III:23.1.1
+ * 
+ * Jump instructions takes 3 bytes in total. 1 for the jump instruction itself
+ * and 2 bytes for the operand.
+ */
+static int jump_instruction(const char *name, int sign, LoxChunk *chunk, int offset) {
+    uint16_t jump = (uint16_t)read_jump(chunk->code, offset);
+    printf("%-16s %4d -> %i\n", name, offset, offset + 3 + sign * jump);
+    return offset + 3;
+}
+
 static int constant_instruction(const char *name, LoxChunk *chunk, int offset) {
     // code[offset] is OP_CONSTANT opcode, code[offset + 1] is the operand.
     // This gives us an index into this chunk's constants pool.
@@ -64,6 +91,8 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     case OP_UNM: return simple_instruction("OP_UNM", offset);
     case OP_PRINT: return simple_instruction("OP_PRINT", offset);
     case OP_POP: return simple_instruction("OP_POP", offset);
+    case OP_JUMP: return jump_instruction("OP_JUMP", 1, chunk, offset);
+    case OP_JUMP_IF_FALSE: return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
     case OP_RET: return simple_instruction("OP_RET", offset);
     default:
         printf("Unknown opcode %d.\n", opcode);
@@ -71,4 +100,4 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     }
 }
 
-
+#undef read_jump

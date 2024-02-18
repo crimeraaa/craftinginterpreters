@@ -10,7 +10,7 @@ LoxVM vm = {0}; // For simplicity we'll use global state. Not good practice!
 
 /**
  * Make the stacktop pointer point to the stack base.
- * Note that because our stack is, well, stack-allocated, simple moving the
+ * Note that because our stack is, well, stack-allocated, simply moving the
  * pointer back is more than enough to indicate which memory is used.
  */
 static void reset_stack_vm() {
@@ -101,6 +101,27 @@ static void concatenate(void) {
 #define read_constant() (vm.chunk->constants.values[read_byte()])
 
 /**
+ * This macro is very terse! Let's break it down. Overall we're just taking two
+ * 8-bit values from the chunk and building a 16-bit value from them.
+ * 
+ * 1. vm.ip += 2:   This does exactly what it says, except that since this is a
+ *                  comma-separated expression, it won't be returned. Remember
+ *                  that in C, comma-separated expressions returns only the one
+ *                  expression at the rightmost comma.
+ *
+ * 2. vm.ip[-2]<<8  We know that the upper 8 bits of the jump operand are here.
+ *                  By bitshifting 8 bits to the left, we move all the bits of 
+ *                  this 8-bit value to the upper 8 bits of a 16 bit one.
+ *
+ * 3. | vm.ip[-1]   We bitwise OR the result of #2. with the lower 8 bits of the
+ *                  jump operand. Since we bitshifted left previously, all the
+ *                  lower bits of the previous operation are now zeroed out.
+ *                  When we do a bitwise OR, both operands' nonzero bits are 
+ *                  copied over into the result. E.g. `0b1001 | 0b1011 = 0b1011`.
+ */
+#define read_short()    (vm.ip += 2, (uint16_t)((vm.ip[-2] << 8) | vm.ip[-1]))
+
+/**
  * Assuming that the top of the stack contains a Lox string, immediately read
  * it as such. This may not end well!
  */
@@ -164,9 +185,9 @@ static LoxInterpretResult run_vm(void) {
         }
         case OP_SET_GLOBAL: {
             LoxString *name = read_string();
-            // If the value doesn't exist, don't even try to assign to it!
-            // In a REPL, though, table set implicitly creates the value.
-            // So we delete it?
+            // Bit wasteful, but gets the job done.
+            // table_set() returns true if we created a new key, meaning
+            // this global variable wasn't declared beforehand!
             if (table_set(&vm.globals, name, peek_vm(0))) {
                 table_delete(&vm.globals, name);
                 runtime_error_vm("Undefined variable '%s'.", name->buffer);
@@ -203,8 +224,8 @@ static LoxInterpretResult run_vm(void) {
         }
         // >= and <= will be 2 separate instructions each
         case OP_GREATER: make_binary_op(make_loxbool, >); break;
-        case OP_LESS: make_binary_op(make_loxbool, <); break;
-        case OP_ADD:
+        case OP_LESS:    make_binary_op(make_loxbool, <); break;
+        case OP_ADD: {
             if (is_loxstring(peek_vm(0)) && is_loxstring(peek_vm(1))) {
                 concatenate();
             } else if (is_loxnumber(peek_vm(0)) && is_loxnumber(peek_vm(1))) {
@@ -217,6 +238,7 @@ static LoxInterpretResult run_vm(void) {
                 return INTERPRET_RUNTIME_ERROR;
             }
             break;
+        }
         case OP_SUB: make_binary_op(make_loxnumber, -); break;
         case OP_MUL: make_binary_op(make_loxnumber, *); break;
         case OP_DIV: make_binary_op(make_loxnumber, /); break;
@@ -229,12 +251,28 @@ static LoxInterpretResult run_vm(void) {
             }
             push_vm(make_loxnumber(-as_loxnumber(pop_vm())));
             break;
-        case OP_PRINT:
+        case OP_PRINT: {
             // When interpreter reaches this instruction, the singular argument
             // to print should be at the top of the stack.
             print_value(pop_vm());
             printf("\n");
             break;
+        }
+        // We don't need to check the condition, we always apply the offset.
+        case OP_JUMP: {
+            uint16_t offset = read_short();
+            vm.ip += offset;
+            break;
+        }
+        case OP_JUMP_IF_FALSE: {
+            // Use some bit twiddling fun to turn 2 uint8's into 1 uint16.
+            uint16_t offset = read_short();
+            // Evaluate the condition at runtime. If false, we do jump!
+            if (isfalsy(peek_vm(0))) {
+                vm.ip += offset;
+            }
+            break;
+        }
         case OP_RET: 
             // Exit interpreter.
             return INTERPRET_OK;

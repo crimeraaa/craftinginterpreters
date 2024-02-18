@@ -7,7 +7,15 @@
 #include <stdint.h>     /* fixed width integer types! */
 #include <stdio.h>      /* FILE*, f* family, *printf family */
 #include <string.h>     /*  */
+
+#if defined(unix) || defined(__unix__) || defined(__unix)
 #include <sysexits.h>   /* UNIX conventional exit codes. */
+#else /* No unix macro defined, hardcode these for compatibility w/ Windows */
+#define EX_USAGE        64  /* command line usage error */
+#define EX_DATAERR      65  /* data format error */
+#define EX_SOFTWARE     70  /* internal software error */
+#define EX_IOERR        74  /* input/output error */
+#endif
 
 /* III:17.7 */
 #define DEBUG_PRINT_CODE

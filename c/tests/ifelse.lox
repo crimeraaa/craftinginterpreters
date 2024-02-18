@@ -1,0 +1,27 @@
+var cond = true;
+if (cond) {
+    print("yay");
+} else {
+    print("nay");
+}
+
+print(cond);
+
+if (!cond) {
+    print("yay");
+} else {
+    print("nay");
+}
+
+var greet = "Hi";
+var name = "mom";
+
+if (greet == "Hi") {
+    if (name == "mom") {
+        print(greet + " " + name + "!");
+    } else {
+        print("Hi");
+    }
+} else {
+    print("Hello");
+}

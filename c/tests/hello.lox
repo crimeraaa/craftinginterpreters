@@ -6,9 +6,11 @@ var name = "mom";
 // print name; // Nevermind, &vm.strings was somehow evaluated as &vm.globals...
 
 {
-    var name = "Bobby";
+    var name; // OP_NIL
+    name = "Bobby"; // OP_CONSTANT "Bobby"; OP_SET_LOCAL 
     {
-        var greeting = "Hello";
+        var greeting; // OP_NIL
+        greeting = "Hello"; // OP_CONSTANT "Hello"; OP_SET_LOCAL
         print greeting + " " + name + "!"; // Hello Bobby!
     }
     print greeting + " " + name + "!"; // Hi Bobby!
