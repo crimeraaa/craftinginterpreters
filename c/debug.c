@@ -93,6 +93,7 @@ int disassemble_instruction(LoxChunk *chunk, int offset)
     case OP_POP: return simple_instruction("OP_POP", offset);
     case OP_JUMP: return jump_instruction("OP_JUMP", 1, chunk, offset);
     case OP_JUMP_IF_FALSE: return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+    case OP_LOOP: return jump_instruction("OP_LOOP", -1, chunk, offset);
     case OP_RET: return simple_instruction("OP_RET", offset);
     default:
         printf("Unknown opcode %d.\n", opcode);

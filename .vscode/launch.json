@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/c/bin/clox",
-            "args": [],
+            "args": ["${workspaceRoot}/c/tests/loops.lox"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],

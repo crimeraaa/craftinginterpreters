@@ -1,0 +1,44 @@
+{
+    print("while loop test: basic -----------------------------------------*-");
+    var i = 0;
+    while (i < 10) {
+        i = i + 1;
+        print(i);
+    }
+    print("");
+}
+
+{
+    print("-*- while loop test: fibonacci ---------------------------------*-");
+    var fib1 = 0;
+    var fib2 = 1;
+    var fib3 = fib1 + fib2;
+
+    while (fib3 < 100) {
+        print(fib3);
+        fib1 = fib2;
+        fib2 = fib3;
+        fib3 = fib1 + fib2;
+    }
+    print("");
+}
+
+{
+    print("-*- for loop test: basic ---------------------------------------*-");
+    for (var i = 0; i < 10; i = i + 1) {
+        print(i);
+    }
+    print("");
+}
+
+{
+    print("-*- for loop test: fibonacci -----------------------------------*-");
+    var x = 0;
+    var y = 1;
+    for (var z = 1; z < 100; z = x + y) {
+        print(z);
+        x = y;
+        y = z;
+    }
+    print("");
+}

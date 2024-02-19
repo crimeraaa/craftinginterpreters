@@ -1,12 +1,24 @@
 CC 	   := clang
-DEBUGFLAGS := -fdiagnostics-color=always -g -O0
-CFLAGS := $(DEBUGFLAGS) -std=c11 -Wall -Wextra -Wshadow -pedantic
+CFLAGS := -std=c11 -Wall -Wextra -Wshadow -pedantic
+DEBUGFLAGS 	 := -fdiagnostics-color=always -g -O0
+RELEASEFLAGS := -O2 -s
 
 EXE := clox
 CC_SRC := $(wildcard *.c)
 CC_OBJ := $(patsubst %.c, obj/%.o, $(CC_SRC))
 
-all: bin/$(EXE)
+all: debug
+	
+build: bin/$(EXE)
+	
+debug: CFLAGS += $(DEBUGFLAGS) -DDEBUG_PRINT_CODE
+debug: build
+	
+trace: CFLAGS += -DDEBUG_TRACE_EXECUTION
+trace: debug
+	
+release: CFLAGS += $(RELEASEFLAGS)
+release: build
 	
 # bin obj:
 # 	$(MKDIR) $@
@@ -23,4 +35,4 @@ clean:
 uninstall: clean
 	$(RM) $(EXE)
 	
-.PHONY: all clean uninstall
+.PHONY: all build clean debug release trace uninstall

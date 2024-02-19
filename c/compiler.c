@@ -9,6 +9,22 @@
 #include "debug.h"
 #endif
 
+/** 
+ * Store the upper 8 bits of a future 16-bit integer in an 8-bit integer.
+ *
+ * This is used to split a 16/greater sized integer into 2 8-bit ones so that 
+ * they fit in our bytecode instruction set.
+ */
+#define mask_int16_upper(n)   (((n) >> 8) & 0xFF)
+
+/**
+ * Store the lower 8 bits for a future 16-bit integer in an 8-bit integer.
+ *
+ * This is used to split a 16/greater sized integer into 2 8-bit ones so that 
+ * they fit in our bytecode instruction set.
+ */
+#define mask_int16_lower(n)   ((n) & 0xFF)
+
 typedef struct {
     LoxToken current;
     LoxToken previous;
@@ -152,6 +168,24 @@ static void emit_bytes(uint8_t byte1, uint8_t byte2) {
 }
 
 /**
+ * Emit the instructions neded to continuously loop.
+ * 
+ * This emits an unconditional jump, the only way to break out of the loop is
+ * handled separately by other code that has a boolean expression and emitted
+ * an OP_JUMP_IF_FALSE instruction.
+ */
+static void emit_loop(int loopstart) {
+    emit_byte(OP_LOOP);
+
+    int offset = current_chunk()->count - loopstart + 2;
+    if (offset > UINT16_MAX) {
+        error("Loop body too large.");
+    }
+    emit_byte(mask_int16_upper(offset));
+    emit_byte(mask_int16_lower(offset));
+}
+
+/**
  * III:23.1
  * 
  * Because we don't immediately know how many bytes either if-else branch takes up,
@@ -161,6 +195,9 @@ static void emit_bytes(uint8_t byte1, uint8_t byte2) {
  * 
  * This is called backpatching, and we use 2 bytes for the jump offset.
  * This allow us to about 65,535 bytes of code which should be mostly enough.
+ * 
+ * This returns the index into the chunk where the upper 8 bits of the jump offset
+ * operand is located.
  */
 static int emit_jump(uint8_t instruction) {
     emit_byte(instruction);
@@ -206,8 +243,8 @@ static void patch_jump(int offset) {
     if (jump > UINT16_MAX) {
         error("Too much code to jump over.");
     }
-    current_chunk()->code[offset] = (jump >> 8) & 0xFF; // Upper 8 bits.
-    current_chunk()->code[offset + 1] = jump & 0xFF; // Lower 8 bits.
+    current_chunk()->code[offset]     = mask_int16_upper(jump);
+    current_chunk()->code[offset + 1] = mask_int16_lower(jump);
 }
 
 static void init_compiler(LoxCompiler *self) {
@@ -742,6 +779,45 @@ static void print_statement(void) {
     emit_byte(OP_PRINT);
 }
 
+/**
+ * III:23.3: While Statements
+ * 
+ * Like if statements, we have mandatory parentheses as in the C-style.
+ * The following jump instruction emulates the breaking on false behaviour.
+ * 
+ * If true, we pop the value off the stack created by evaluating the expression,
+ * then we run a `statement()`. When we hit a false, we break and pop off the
+ * stack the value left over from `statement()`.
+ * 
+ * If false to begin with, we jump to the 2nd pop instruction and just pop off
+ * the value created by `expression()`.
+ * 
+ * Visualization:
+ * 
+ *          <condition expression> <---+
+ *     +--- OP_JUMP_IF_FALSE           |
+ *     |    OP_POP                     |
+ *     |    <body statement>           |
+ *     |    OP_LOOP -------------------+
+ *     +--> OP_POP
+ *          continues...
+ */
+static void while_statement(void) {
+    // Capture the instruction pointer we need to jump back to the condition.
+    int loopstart = current_chunk()->count;
+    consume(TOKEN_LEFT_PAREN, "Expected '!' after 'while'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expected ')' after condition.");
+
+    int exitjump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_POP); // Pop result on top of stack created by `expression()`.
+    statement();
+    emit_loop(loopstart);
+
+    patch_jump(exitjump);
+    emit_byte(OP_POP); // Pop result of either `expression()` or `statement()`.
+}
+
 /** 
  * This is just an expression followed by a semicolon. 
  * Semantically, we just evaluate the expression and discard the result.
@@ -751,6 +827,91 @@ static void expression_statement(void) {
     expression();
     consume(TOKEN_SEMICOLON, "Expected ';' after value.");
     emit_byte(OP_POP);
+}
+
+/**
+ * III:23.4: For Statements
+ * 
+ * For statements are while while loops with some nice little features, like
+ * being their own block scope and declaring local iterator variables.
+ * 
+ * Visualization:
+ * 
+ *              <initializer clause>
+ *              <condition expression> <--+
+ *         +--- OP_JUMP_IF_FALSE          |
+ *         |    OP_POP                    |
+ *      +--|--- OP_JUMP                   |
+ *      |  |    <increment expression> <--|--+
+ *      |  |    OP_POP                    |  |
+ *      |  |    OP_LOOP ------------------+  | 
+ *      |--|--> <body statement>             |
+ *         |    OP_LOOP ---------------------+
+ *         +--> OP_POP
+ *              continues...
+ */
+static void for_statement(void) {
+    beginscope();
+
+    // 1st Clause: Initializer
+    // We allow no initializer, local variable declaration, or outer assignment.
+    consume(TOKEN_LEFT_PAREN, "Expected '(' after 'for'.");
+    if (match(TOKEN_SEMICOLON)) {
+        // No initalizer, so don't do anything.
+    } else if (match(TOKEN_VAR)) {
+        var_declaration();
+    } else {
+        expression_statement();
+    }
+
+    // Keep track of where to jump right whenever the conditional is true.
+    int loopstart = current_chunk()->count;
+
+    // 2nd Clause: Conditional
+    // We use this in order to exit the loop, similar to a while loop.
+    // It can be empty to indicate no condition is needed to break the loop.
+    int exitjump = -1;
+    if (!match(TOKEN_SEMICOLON)) {
+        expression();
+        consume(TOKEN_SEMICOLON, "Expected ';' after expression.");
+
+        // Jump out of the loop if the condition is false.
+        exitjump = emit_jump(OP_JUMP_IF_FALSE);
+        emit_byte(OP_POP); // Clean up stack var pushed by `expression()`.
+    }
+    
+    // 3rd Clause: Increment
+    // This one is quite messy since we don't have an AST. The problem is that
+    // the increment operation must occur AFTER the body. So we have to jump over
+    // the increment first, execute the body, then jump back for the iteration.
+    if (!match(TOKEN_RIGHT_PAREN)) {
+        // This is the main loop that takes us back to the top of the 'for' loop
+        // but right before the condition, if there is one.
+        int bodyjump = emit_jump(OP_JUMP);
+        int incrementstart = current_chunk()->count;
+        
+        // Compile the iterator expression, commonly an assignment to the iterator
+        // It's likely it'll push something to the chunk's stack so pop it off.
+        expression();
+        emit_byte(OP_POP);
+        consume(TOKEN_RIGHT_PAREN, "Expected ')' after for clauses.");
+        
+        // Make loopstart point to the first instruction after the iteration.
+        // this makes it so that the loop body is executed before it.
+        emit_loop(loopstart);
+        loopstart = incrementstart;
+        patch_jump(bodyjump);
+    }
+
+    // Loop body
+    statement();
+    emit_loop(loopstart);
+    // If no condition (exitjump == -1), we don't have a jump to patch.
+    if (exitjump != -1) {
+        patch_jump(exitjump);
+        emit_byte(OP_POP);
+    }
+    endscope();
 }
 
 /**
@@ -820,6 +981,10 @@ static void statement(void) {
         print_statement();
     } else if (match(TOKEN_IF)) {
         if_statement();
+    } else if (match(TOKEN_WHILE)) {
+        while_statement();
+    } else if (match(TOKEN_FOR)) {
+        for_statement();
     } else if (match(TOKEN_LEFT_BRACE)) {
         beginscope();
         block();

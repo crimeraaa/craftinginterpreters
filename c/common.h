@@ -18,9 +18,9 @@
 #endif
 
 /* III:17.7 */
-#define DEBUG_PRINT_CODE
+// #define DEBUG_PRINT_CODE
 /* III:15.1.2 */
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 /* III:22.1: our VM has a hard limit on how many locals can be in scope at once. */
 #define UINT8_COUNT (UINT8_MAX + 1)

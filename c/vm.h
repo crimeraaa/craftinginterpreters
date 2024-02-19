@@ -7,7 +7,7 @@
 #include "object.h"
 #include "table.h"
 
-#define STACK_MAX 256
+#define STACK_MAX UINT8_COUNT
 
 /** 
  * Say hello to the CLox Virtual Machine! It executes Lox bytecode.

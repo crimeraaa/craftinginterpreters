@@ -273,6 +273,13 @@ static LoxInterpretResult run_vm(void) {
             }
             break;
         }
+        // We decrement vm.ip since we want to jump backwards.
+        // As is, the loop jumps unconditionally. Breaking out is another case.
+        case OP_LOOP: {
+            uint16_t offset = read_short();
+            vm.ip -= offset;
+            break;
+        }
         case OP_RET: 
             // Exit interpreter.
             return INTERPRET_OK;
@@ -299,3 +306,4 @@ LoxInterpretResult interpret_vm(const char *source)
 #undef read_byte
 #undef read_constant
 #undef read_string
+#undef read_short

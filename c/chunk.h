@@ -29,6 +29,7 @@ typedef enum {
     OP_PRINT, // III:21.1.1: Print Statements
     OP_JUMP,  // III:23.1.1: Else Clauses -- unconditional jumps
     OP_JUMP_IF_FALSE, // III:23.1: If Statements
+    OP_LOOP,  // III:23.3: While Statements
     OP_POP,   // III:21.1.2: Expression Statements
     OP_DEFINE_GLOBAL,
     OP_GET_GLOBAL, // III:21.3: Reading Variables
